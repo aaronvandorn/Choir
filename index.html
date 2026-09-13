@@ -338,6 +338,7 @@
 
   <div class="panel">
     <h2>Vowel — quantized sample &amp; hold</h2>
+    <p class="sub" style="margin:-8px 0 14px;">Each step holds a position along the vowel space (i → e → a → o → u), so the run of steps glides between them like syllables in a spoken line.</p>
     <div class="row">
       <div class="ctrl">
         <label>Clock rate <span class="val" id="vowelRateVal">0.25 Hz</span></label>
@@ -346,6 +347,17 @@
       <div class="ctrl">
         <label>Glide time (slide) <span class="val" id="vowelGlideVal">900 ms</span></label>
         <input type="range" id="vowelGlide" min="20" max="4000" step="20" value="900">
+      </div>
+      <div class="ctrl" style="flex:1 1 100%;">
+        <label>Steps <span class="val" id="vowelStepsVal">8</span></label>
+        <input type="range" id="vowelSteps" min="2" max="16" step="1" value="8">
+      </div>
+      <div class="ctrl" style="flex:1 1 100%;">
+        <label>Evolution <span class="val" id="vowelEvolutionVal">40%</span></label>
+        <input type="range" id="vowelEvolution" min="0" max="100" step="1" value="40">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink-dim);margin-top:4px;">
+          <span>static</span><span>evolving</span><span>random</span>
+        </div>
       </div>
     </div>
   </div>
@@ -399,9 +411,9 @@
 <script>
 (function(){
   const VOWELS = [
-    { name:'i', f1:270, f2:2290, f3:3010, amp:[1.0,0.55,0.25] },
-    { name:'e', f1:400, f2:2000, f3:2550, amp:[1.0,0.55,0.25] },
     { name:'a', f1:700, f2:1220, f3:2600, amp:[1.0,0.45,0.25] },
+    { name:'e', f1:400, f2:2000, f3:2550, amp:[1.0,0.55,0.25] },
+    { name:'i', f1:270, f2:2290, f3:3010, amp:[1.0,0.55,0.25] },
     { name:'o', f1:450, f2:800,  f3:2400, amp:[1.0,0.45,0.20] },
     { name:'u', f1:300, f2:700,  f3:2250, amp:[1.0,0.35,0.15] }
   ];
@@ -437,8 +449,9 @@
   let ampState = [
     freshState(VOWELS[2].amp[0]), freshState(VOWELS[2].amp[1]), freshState(VOWELS[2].amp[2])
   ];
-  let currentVowelIndex = 2;
   let pitchPoolIndex = 0;
+  let vowelSequence = [];
+  let vowelStepIndex = 0;
 
   function currentValue(state, now){
     if(!state.startTime || now >= state.endTime) return state.endVal;
@@ -569,14 +582,47 @@
 
   function freshLike(state){ return { startVal: state.startVal, startTime: state.startTime, endVal: state.endVal, endTime: state.endTime }; }
 
+  function buildVowelSequence(){
+    const steps = parseInt(document.getElementById('vowelSteps').value,10);
+    vowelSequence = [];
+    for(let i=0;i<steps;i++) vowelSequence.push(Math.random());
+    vowelStepIndex = 0;
+  }
+
+  function vowelSoundAt(v){
+    const pos = Math.max(0, Math.min(1, v)) * (VOWELS.length - 1);
+    const i0 = Math.floor(pos);
+    const i1 = Math.min(VOWELS.length-1, i0+1);
+    const frac = pos - i0;
+    const a = VOWELS[i0], b = VOWELS[i1];
+    return {
+      f1: a.f1 + (b.f1-a.f1)*frac,
+      f2: a.f2 + (b.f2-a.f2)*frac,
+      f3: a.f3 + (b.f3-a.f3)*frac,
+      amp: [0,1,2].map(k => a.amp[k] + (b.amp[k]-a.amp[k])*frac),
+      name: frac < 0.5 ? a.name : b.name
+    };
+  }
+
+  function advanceVowelStep(){
+    if(!vowelSequence.length) buildVowelSequence();
+    vowelStepIndex = (vowelStepIndex + 1) % vowelSequence.length;
+    const evo = parseFloat(document.getElementById('vowelEvolution').value)/100;
+    // evo=0: step value never changes (a fixed repeating phrase). evo=1: fully re-rolled each pass.
+    if(Math.random() < evo){
+      const current = vowelSequence[vowelStepIndex];
+      const delta = (Math.random()*2-1) * evo;
+      vowelSequence[vowelStepIndex] = Math.max(0, Math.min(1, current + delta));
+    }
+    return vowelSequence[vowelStepIndex];
+  }
+
   function applyVowelTarget(){
     if(!running) return;
     const now = ctx.currentTime;
     const glideSec = parseFloat(document.getElementById('vowelGlide').value)/1000;
-    let idx = Math.floor(Math.random()*VOWELS.length);
-    if(idx === currentVowelIndex && VOWELS.length>1){ idx = (idx+1)%VOWELS.length; }
-    currentVowelIndex = idx;
-    const target = VOWELS[idx];
+    const value = advanceVowelStep();
+    const target = vowelSoundAt(value);
     for(let f=0; f<3; f++){
       const freq = [target.f1,target.f2,target.f3][f];
       const amp = target.amp[f];
@@ -802,6 +848,7 @@
     reverbWet.connect(ctx.destination);
     running = true;
     buildVoices();
+    buildVowelSequence();
     setupLFO();
     restartVowelClock();
     applyVowelTarget();
@@ -890,6 +937,13 @@
   });
   document.getElementById('vowelGlide').addEventListener('input', e=>{
     document.getElementById('vowelGlideVal').textContent = e.target.value+' ms';
+  });
+  document.getElementById('vowelSteps').addEventListener('input', e=>{
+    document.getElementById('vowelStepsVal').textContent = e.target.value;
+    buildVowelSequence();
+  });
+  document.getElementById('vowelEvolution').addEventListener('input', e=>{
+    document.getElementById('vowelEvolutionVal').textContent = e.target.value+'%';
   });
   document.getElementById('lfoRate').addEventListener('input', e=>{
     document.getElementById('lfoRateVal').textContent = parseFloat(e.target.value).toFixed(2)+' Hz';
