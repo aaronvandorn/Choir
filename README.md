@@ -96,3 +96,9 @@ git push
 ```
 
 GitHub Pages rebuilds automatically after a push to `main`.
+
+## Jam Link
+
+Press **Link** in this app and in Logic Rhythm, Boolean Melody Machine and Choir (open each in its own tab or window of the same browser) and they share tempo, start/stop, key and mode, and saved scenes, all locked to one beat grid. See [JAM-LINK.md](JAM-LINK.md) for how it works.
+
+Notes for this app: notes are now placed on a look-ahead timer against the beat grid (no timer drift), and the tempo slider runs 40–240 BPM.
