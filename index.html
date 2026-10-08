@@ -217,6 +217,10 @@
         <div class="label">Motif</div>
         <div class="value" id="motifReadout" style="font-size:18px;padding-top:6px;">—</div>
       </div>
+      <div class="readout">
+        <div class="label">Inflection</div>
+        <div class="value teal" id="exprReadout" style="font-size:18px;padding-top:6px;">—</div>
+      </div>
       <canvas id="vowelSpace" width="260" height="180"></canvas>
     </div>
   </div>
@@ -253,7 +257,7 @@
 
   <div class="panel">
     <h2>Pitch — quantized sample &amp; hold</h2>
-    <p class="sub" style="margin:-8px 0 14px;">Plays a short repeating motif. The first pass states it cleanly, then Evolution mutates it a little each time round. Note lengths and rests come from the rhythm engine below.</p>
+    <p class="sub" style="margin:-8px 0 14px;">Plays a short repeating motif that follows a melodic contour: mostly steps between neighbouring notes, with the occasional leap that steps back the other way. The first pass states it cleanly, then Pitch evolution mutates it a little each time round. Note lengths and rests come from the rhythm engine below.</p>
     <div class="row">
       <div class="ctrl">
         <label>Key</label>
@@ -295,13 +299,30 @@
         <input type="range" id="pitchGlide" min="0" max="1000" step="10" value="80">
       </div>
       <div class="ctrl" style="flex:1 1 100%;">
-        <label>Number of notes <span class="val" id="pitchCharacterVal">4</span></label>
-        <input type="range" id="pitchCharacter" min="1" max="20" step="1" value="4">
+        <label>Number of notes <span class="val" id="pitchCharacterVal">8</span></label>
+        <input type="range" id="pitchCharacter" min="1" max="20" step="1" value="8">
       </div>
       <div class="ctrl" style="flex:1 1 100%;">
         <label>Motif length <span class="val" id="motifLengthVal">8 notes</span></label>
         <input type="range" id="motifLength" min="2" max="16" step="1" value="8">
         <button id="newMotifBtn" style="margin-top:8px;padding:6px 14px;">New motif</button>
+      </div>
+      <div class="ctrl">
+        <label>Contour</label>
+        <select id="contourShape">
+          <option value="arch" selected>Arch (rise and fall)</option>
+          <option value="rising">Rising</option>
+          <option value="falling">Falling</option>
+          <option value="wave">Wave</option>
+          <option value="free">Free (no shape)</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <label>Leapiness <span class="val" id="leapinessVal">25%</span></label>
+        <input type="range" id="leapiness" min="0" max="100" step="1" value="25">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink-dim);margin-top:4px;">
+          <span>stepwise</span><span>leaping</span>
+        </div>
       </div>
       <div class="ctrl" style="flex:1 1 100%;">
         <label>Pitch evolution <span class="val" id="pitchEvolutionVal">25%</span></label>
@@ -350,6 +371,46 @@
       <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-dim);flex:0 0 auto;"><input type="checkbox" data-beats="0.3333"> 8th triplet</label>
       <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-dim);flex:0 0 auto;"><input type="checkbox" data-beats="0.25" checked> 16th</label>
       <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-dim);flex:0 0 auto;"><input type="checkbox" id="restOption"> rest</label>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Vocal expression</h2>
+    <p class="sub" style="margin:-8px 0 14px;">Each slot in the motif gets an inflection from the ones you tick below, the same way it gets a note length. Expression evolution sets how often a slot's inflection changes on later passes.</p>
+    <div class="row">
+      <div class="ctrl">
+        <label>Amount <span class="val" id="exprAmountVal">60%</span></label>
+        <input type="range" id="exprAmount" min="0" max="100" step="1" value="60">
+      </div>
+      <div class="ctrl">
+        <label>Per note</label>
+        <select id="exprMode">
+          <option value="one" selected>One inflection</option>
+          <option value="all">All ticked together</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <label>Contour</label>
+        <select id="exprContour">
+          <option value="even">Even</option>
+          <option value="melody" selected>Follows the melody</option>
+          <option value="phrase">Builds to phrase end</option>
+        </select>
+      </div>
+      <div class="ctrl" style="flex:1 1 100%;">
+        <label>Expression evolution <span class="val" id="exprEvolutionVal">30%</span></label>
+        <input type="range" id="exprEvolution" min="0" max="100" step="1" value="30">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink-dim);margin-top:4px;">
+          <span>static</span><span>evolving</span><span>random</span>
+        </div>
+      </div>
+    </div>
+    <div class="row" id="inflections" style="margin-top:14px;gap:10px;">
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-dim);flex:0 0 auto;"><input type="checkbox" data-infl="vibrato" checked> vibrato</label>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-dim);flex:0 0 auto;"><input type="checkbox" data-infl="scoop" checked> scoop</label>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-dim);flex:0 0 auto;"><input type="checkbox" data-infl="breath"> breath</label>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-dim);flex:0 0 auto;"><input type="checkbox" data-infl="accent" checked> accent</label>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-dim);flex:0 0 auto;"><input type="checkbox" id="inflPlain" checked> plain</label>
     </div>
   </div>
 
@@ -536,6 +597,11 @@
   let motifPass = 0;
   let currentMelodySemis = 0; // semitones above the key root
 
+  // Vocal expression nodes: a per-note vibrato (its own LFO, fed to every voice's detune)
+  // and a breath-noise layer. Both are created in setupExpression().
+  let vibOsc = null, vibGain = null;
+  let noiseSrc = null, breathFilter = null, breathGain = null;
+
   function currentValue(state, now){
     if(!state.startTime || now >= state.endTime) return state.endVal;
     if(now <= state.startTime) return state.startVal;
@@ -543,8 +609,8 @@
     return state.startVal + (state.endVal - state.startVal) * t;
   }
 
-  function glideParam(param, targetValue, glideSeconds, state, now){
-    const cur = currentValue(state, now);
+  function glideParam(param, targetValue, glideSeconds, state, now, fromValue){
+    const cur = fromValue !== undefined ? fromValue : currentValue(state, now);
     param.cancelScheduledValues(now);
     param.setValueAtTime(cur, now);
     if(glideSeconds <= 0.001){
@@ -644,6 +710,7 @@
       osc.start();
       voices.push({ osc, filters, gains, voiceGain, ideal, freqState: freshState(voiceFreq) });
     }
+    connectVibrato(); // no-op until the expression nodes exist; keeps rebuilt voices vibrato-ready
   }
 
   function buildNotePool(stepChoices){
@@ -681,20 +748,70 @@
     return Math.random() < 1/(enabledNoteBeats().length + 1);
   }
 
-  // New slots wander from the previous one in small steps, bouncing off the ends of the pool
-  // (rather than sticking to them), so a fresh motif has some shape to it.
-  function newSlot(prev, poolLen){
-    let pi;
-    if(prev){
-      const step = Math.random() < 0.7 ? 1 : 2;
-      pi = prev.pi + (Math.random() < 0.5 ? -step : step);
-      if(pi < 0) pi = -pi;
-      if(pi > poolLen-1) pi = 2*(poolLen-1) - pi;
-      pi = clamp(pi, 0, poolLen-1);
-    } else {
-      pi = Math.floor(Math.random()*poolLen);
+  // ----- Melodic contour -----
+  // A "step" is a move to the neighbouring note in the pool, a "leap" skips one or more.
+  // (Raise Number of notes for smaller steps; lower it for a more arpeggiated line.)
+  function contourShape(){ return document.getElementById('contourShape').value; }
+  function leapiness(){ return parseFloat(document.getElementById('leapiness').value)/100; }
+
+  // Where the line "wants" to be at slot i of len, as a position in the pool (null = no shape).
+  function contourTarget(i, len, poolLen, shape){
+    if(poolLen < 2) return null;
+    const t = len > 1 ? i/(len-1) : 0.5;
+    if(shape === 'arch'){
+      // The arch's height is limited to what stepwise motion can climb in half a phrase,
+      // so a short phrase gets a gentle arch and a long one a tall arch.
+      const height = Math.min(0.7*(poolLen-1), 0.5*(len-1));
+      return 0.5*(poolLen-1) - height/2 + height*Math.sin(Math.PI*t);
     }
-    return { pi, beats: pickRandomBeats(), rest: rollRest() };
+    let u;
+    if(shape === 'rising')       u = 0.15 + 0.7*t;
+    else if(shape === 'falling') u = 0.85 - 0.7*t;
+    else if(shape === 'wave')    u = 0.5 + 0.35*Math.sin(2*Math.PI*t);
+    else return null;
+    return u * (poolLen-1);
+  }
+
+  // Next note for a new phrase: mostly a step toward the contour, sometimes a leap, and
+  // a leap is usually followed by a step back the other way. Bounces off the ends of the pool.
+  function nextPi(prevPi, prevMove, i, len, poolLen){
+    if(poolLen <= 1) return 0;
+    const target = contourTarget(i, len, poolLen, contourShape());
+    const wasLeap = Math.abs(prevMove) >= 2;
+    let dir, size;
+    if(wasLeap && Math.random() < 0.85){
+      dir = -Math.sign(prevMove);
+      size = 1;
+    } else {
+      if(Math.random() < 0.06) return prevPi; // now and then a note repeats
+      const leap = poolLen > 2 && Math.random() < leapiness();
+      size = leap ? 2 + Math.floor(Math.random()*Math.min(3, poolLen-2)) : 1;
+      if(target === null){
+        dir = Math.random() < 0.5 ? -1 : 1;
+      } else {
+        const diff = target - prevPi;
+        dir = Math.abs(diff) < 0.5 ? (Math.random() < 0.5 ? -1 : 1) : Math.sign(diff);
+        if(Math.random() < 0.2) dir = -dir; // wander off the line occasionally
+      }
+    }
+    let pi = prevPi + dir*size;
+    if(pi < 0) pi = -pi;
+    if(pi > poolLen-1) pi = 2*(poolLen-1) - pi;
+    return clamp(pi, 0, poolLen-1);
+  }
+
+  // Builds slot i of a phrase of length len, looking at the slots before it.
+  function newSlot(slots, i, len, poolLen){
+    let pi;
+    if(i === 0){
+      const target = contourTarget(0, len, poolLen, contourShape());
+      pi = target === null ? Math.floor(Math.random()*poolLen)
+                           : clamp(Math.round(target + (Math.random()-0.5)*2), 0, poolLen-1);
+    } else {
+      const prevMove = i >= 2 ? slots[i-1].pi - slots[i-2].pi : 0;
+      pi = nextPi(slots[i-1].pi, prevMove, i, len, poolLen);
+    }
+    return { pi, beats: pickRandomBeats(), rest: rollRest(), expr: rollExpression() };
   }
 
   function buildMotif(){
@@ -702,7 +819,7 @@
     const poolLen = getNotePool().length;
     motif = [];
     for(let i=0;i<len;i++){
-      const slot = newSlot(motif[i-1], poolLen);
+      const slot = newSlot(motif, i, len, poolLen);
       if(i === 0) slot.rest = false; // the phrase always opens on a note
       motif.push(slot);
     }
@@ -713,21 +830,33 @@
   function resizeMotif(){
     const len = parseInt(document.getElementById('motifLength').value,10);
     const poolLen = getNotePool().length;
-    while(motif.length < len) motif.push(newSlot(motif[motif.length-1], poolLen));
+    while(motif.length < len) motif.push(newSlot(motif, motif.length, len, poolLen));
     if(motif.length > len) motif.length = len;
     if(motifIndex >= motif.length) motifIndex = 0;
   }
 
-  // Pitch evolution: 0 = slot never changes, 1 = slot jumps anywhere in the pool,
-  // in between = changes are occasional and travel a shorter distance.
-  function mutatePitch(slot, poolLen){
+  // Pitch evolution: 0 = a slot never changes. Up to about 50% a changing slot nudges along
+  // the contour (a step, or a leap if Leapiness allows). Above that the contour loosens, and at
+  // 100% a changing slot jumps anywhere in the pool.
+  function mutatePitch(slot, idx, len, poolLen){
     const evo = parseFloat(document.getElementById('pitchEvolution').value)/100;
-    if(poolLen > 1 && Math.random() < evo){
+    if(poolLen < 2 || Math.random() >= evo) return;
+    const target = contourTarget(idx, len, poolLen, contourShape());
+    const free = target === null || Math.random() < clamp((evo - 0.5) * 2, 0, 1);
+    if(free){
       const range = Math.max(1, Math.round(evo * (poolLen-1)));
       let delta = Math.floor(Math.random()*(2*range+1)) - range;
       if(delta === 0) delta = Math.random() < 0.5 ? -1 : 1;
       slot.pi = clamp(slot.pi + delta, 0, poolLen-1);
+      return;
     }
+    const maxLeap = Math.max(1, Math.round(evo * (poolLen-1)));
+    const leap = maxLeap >= 2 && Math.random() < leapiness();
+    const size = leap ? 2 + Math.floor(Math.random()*(maxLeap-1)) : 1;
+    const diff = target - slot.pi;
+    let dir = Math.abs(diff) < 0.5 ? (Math.random() < 0.5 ? -1 : 1) : Math.sign(diff);
+    if(Math.random() < 0.25) dir = -dir;
+    slot.pi = clamp(slot.pi + dir*size, 0, poolLen-1);
   }
 
   // Rhythm evolution: how often a slot's note length (and rest-or-note) is re-rolled.
@@ -745,17 +874,87 @@
     if(!enabledNoteBeats().some(b => Math.abs(b - slot.beats) < 1e-6)) slot.beats = pickRandomBeats();
   }
 
-  function applyPitchTarget(semis){
+  // ----- Vocal expression -----
+  // Each motif slot carries one of: 'plain', 'all' (every ticked inflection together), or the
+  // id of one inflection. The pool works like the note-length pool: tick what you want in play.
+  const NO_EXPR = { vibrato:false, scoop:false, breath:false, accent:false, intensity:0, level:1, label:'plain' };
+
+  function enabledInflections(){
+    return Array.from(document.querySelectorAll('#inflections input[type=checkbox][data-infl]'))
+      .filter(b => b.checked).map(b => b.dataset.infl);
+  }
+  function plainEnabled(){ return document.getElementById('inflPlain').checked; }
+  function exprAllTogether(){ return document.getElementById('exprMode').value === 'all'; }
+
+  // Plain is weighted as one more peer option, the same way rest is among the note lengths.
+  function rollExpression(){
+    const ids = enabledInflections();
+    if(!ids.length) return 'plain';
+    const plain = plainEnabled();
+    if(exprAllTogether()) return (plain && Math.random() < 1/(ids.length+1)) ? 'plain' : 'all';
+    const pool = plain ? ids.concat('plain') : ids;
+    return pool[Math.floor(Math.random()*pool.length)];
+  }
+
+  // Expression evolution: how often a slot's inflection is re-rolled on later passes.
+  function mutateExpression(slot){
+    const evo = parseFloat(document.getElementById('exprEvolution').value)/100;
+    if(Math.random() < evo) slot.expr = rollExpression();
+  }
+
+  // Keeps a slot valid after the ticked set or the Per note mode changed.
+  function sanitizeExpression(slot){
+    const ids = enabledInflections();
+    if(!ids.length){ slot.expr = 'plain'; return; }
+    if(slot.expr === 'plain'){ if(!plainEnabled()) slot.expr = rollExpression(); return; }
+    if(exprAllTogether()){ slot.expr = 'all'; return; }
+    if(slot.expr === 'all' || !ids.includes(slot.expr)) slot.expr = rollExpression();
+  }
+
+  // Shapes how strongly a note is inflected: even, rising with the melody, or building to the
+  // end of the phrase.
+  function contourFactor(slot, idx, len, poolLen){
+    const mode = document.getElementById('exprContour').value;
+    if(mode === 'melody') return poolLen > 1 ? 0.35 + 0.65*(slot.pi/(poolLen-1)) : 1;
+    if(mode === 'phrase') return len > 1 ? 0.35 + 0.65*(idx/(len-1)) : 1;
+    return 1;
+  }
+
+  function buildExpression(slot, idx, len, poolLen){
+    const ids = enabledInflections();
+    const active = slot.expr === 'plain' ? []
+                 : slot.expr === 'all' ? ids
+                 : ids.includes(slot.expr) ? [slot.expr] : [];
+    const amount = parseFloat(document.getElementById('exprAmount').value)/100;
+    const intensity = clamp(amount * contourFactor(slot, idx, len, poolLen), 0, 1);
+    const accent = active.includes('accent');
+    // With accent in play, notes that are not accented sit softer, so the accents stand out.
+    const level = ids.includes('accent') && !accent ? 1 - 0.4*amount : 1;
+    return {
+      vibrato: active.includes('vibrato'), scoop: active.includes('scoop'),
+      breath: active.includes('breath'), accent, intensity, level,
+      label: active.length ? active.join(' + ') : 'plain'
+    };
+  }
+
+  function applyPitchTarget(semis, expr, durationSec){
     if(!running) return;
     const now = ctx.currentTime;
     const glideSec = parseFloat(document.getElementById('pitchGlide').value)/1000;
     const sc = currentScale();
     currentMelodySemis = semis;
     const target = sc.root * Math.pow(2, semis/12);
+    // Scoop: the note starts a little under pitch and slides up into it, in place of the portamento.
+    const scoopSemis = expr && expr.scoop ? 1.8 * expr.intensity : 0;
+    const scoopSec = Math.min(0.06 + 0.07 * (expr ? expr.intensity : 0), 0.5 * (durationSec || 1));
     voices.forEach(v => {
       const voiceTarget = sc.root * Math.pow(2, voiceSemisFor(semis, v.ideal||0, sc)/12);
       if(!v.freqState) v.freqState = freshState(voiceTarget);
-      glideParam(v.osc.frequency, voiceTarget, glideSec, v.freqState, now);
+      if(scoopSemis > 0.01){
+        glideParam(v.osc.frequency, voiceTarget, scoopSec, v.freqState, now, voiceTarget * Math.pow(2, -scoopSemis/12));
+      } else {
+        glideParam(v.osc.frequency, voiceTarget, glideSec, v.freqState, now);
+      }
     });
     pitchState.startVal = currentValue(pitchState, now);
     pitchState.startTime = now;
@@ -889,20 +1088,26 @@
     if(motifIndex >= motif.length) motifIndex = 0;
     const pool = getNotePool();
     const slot = motif[motifIndex];
+    const idx = motifIndex, len = motif.length;
     if(motifPass > 0){
-      mutatePitch(slot, pool.length);
+      mutatePitch(slot, idx, len, pool.length);
       mutateRhythm(slot);
+      mutateExpression(slot);
     }
     sanitizeSlot(slot, pool.length);
+    sanitizeExpression(slot);
 
     const bpm = parseFloat(document.getElementById('bpm').value);
     const durationSec = slot.beats * (60/bpm);
-    document.getElementById('motifReadout').textContent = (motifIndex+1)+'/'+motif.length+' · pass '+(motifPass+1);
+    document.getElementById('motifReadout').textContent = (idx+1)+'/'+len+' · pass '+(motifPass+1);
 
     if(slot.rest && restIsEnabled()){
       restOn();
+      document.getElementById('exprReadout').textContent = 'rest';
     } else {
-      noteOn(durationSec, slot.beats, pool[slot.pi]);
+      const expr = buildExpression(slot, idx, len, pool.length);
+      document.getElementById('exprReadout').textContent = expr.label;
+      noteOn(durationSec, slot.beats, pool[slot.pi], expr);
     }
 
     motifIndex++;
@@ -917,14 +1122,48 @@
     envGain.gain.cancelScheduledValues(now);
     envGain.gain.setValueAtTime(envGain.gain.value, now);
     envGain.gain.linearRampToValueAtTime(0.0001, now + releaseSec);
+    if(vibGain){ vibGain.gain.cancelScheduledValues(now); vibGain.gain.setValueAtTime(0, now); }
+    if(breathGain){ breathGain.gain.cancelScheduledValues(now); breathGain.gain.setValueAtTime(0, now); }
     document.getElementById('pitchReadout').textContent = 'rest';
   }
 
-  function scheduleFilterEnvelope(gateOnSec){
+  // Vibrato: a delayed sine on every voice's detune that fades in over a held note. The delay,
+  // fade and depth all scale with how long the note is, so short notes stay nearly straight.
+  function scheduleVibrato(gateOnSec, beats, expr){
+    if(!vibGain) return;
+    const now = ctx.currentTime;
+    const g = vibGain.gain;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(0, now);
+    if(!expr.vibrato) return;
+    const longness = clamp((beats - 0.5) / 1.5, 0, 1);
+    const depthCents = 60 * expr.intensity * (0.25 + 0.75*longness);
+    const delay = 0.22 * gateOnSec, fade = 0.35 * gateOnSec;
+    vibOsc.frequency.setValueAtTime(5.0 + Math.random()*1.4, now);
+    g.setValueAtTime(0, now + delay);
+    g.linearRampToValueAtTime(depthCents, now + delay + fade);
+    g.setValueAtTime(depthCents, now + gateOnSec);
+    g.linearRampToValueAtTime(0, now + gateOnSec + 0.08);
+  }
+
+  // Breath: a short burst of band-limited noise at the start of the note.
+  function scheduleBreath(durationSec, expr){
+    if(!breathGain) return;
+    const now = ctx.currentTime;
+    const g = breathGain.gain;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(0, now);
+    if(!expr.breath) return;
+    const len = Math.min(0.07 + 0.10*expr.intensity, 0.8*durationSec);
+    g.linearRampToValueAtTime(0.28 * expr.intensity, now + 0.008);
+    g.linearRampToValueAtTime(0, now + len);
+  }
+
+  function scheduleFilterEnvelope(gateOnSec, liftOct){
     if(!vocalFilter) return;
     const now = ctx.currentTime;
     const base = parseFloat(document.getElementById('filterCutoff').value);
-    const amountOct = parseFloat(document.getElementById('filterEnvAmount').value);
+    const amountOct = parseFloat(document.getElementById('filterEnvAmount').value) + (liftOct || 0);
     const peak = base * Math.pow(2, amountOct);
     const sustainFrac = parseFloat(document.getElementById('filterSustain').value)/100;
     const sustainLevel = base + (peak - base) * sustainFrac;
@@ -941,21 +1180,25 @@
     vocalFilter.frequency.linearRampToValueAtTime(base, now + gateOnSec + releaseSec);
   }
 
-  function noteOn(durationSec, beats, semis){
-    applyPitchTarget(semis);
+  function noteOn(durationSec, beats, semis, expr){
+    expr = expr || NO_EXPR;
+    applyPitchTarget(semis, expr, durationSec);
     if(!envGain) return;
     const now = ctx.currentTime;
-    const attackSec = parseFloat(document.getElementById('attack').value)/1000;
+    let attackSec = parseFloat(document.getElementById('attack').value)/1000;
+    if(expr.accent) attackSec = Math.max(0.002, attackSec * 0.4); // accents hit faster
     const releaseSec = parseFloat(document.getElementById('release').value)/1000;
     const gateFrac = parseFloat(document.getElementById('gateLen').value)/100;
     let gateOnSec = Math.max(durationSec * gateFrac, attackSec + 0.005);
     if(gateOnSec > durationSec) gateOnSec = durationSec;
     envGain.gain.cancelScheduledValues(now);
     envGain.gain.setValueAtTime(0.0001, now);
-    envGain.gain.linearRampToValueAtTime(1, now + attackSec);
-    envGain.gain.setValueAtTime(1, now + gateOnSec);
+    envGain.gain.linearRampToValueAtTime(expr.level, now + attackSec);
+    envGain.gain.setValueAtTime(expr.level, now + gateOnSec);
     envGain.gain.linearRampToValueAtTime(0.0001, now + gateOnSec + releaseSec);
-    scheduleFilterEnvelope(gateOnSec);
+    scheduleFilterEnvelope(gateOnSec, expr.accent ? 0.8 * expr.intensity : 0); // accents are brighter
+    scheduleVibrato(gateOnSec, beats, expr);
+    scheduleBreath(durationSec, expr);
 
     // Syllable sync: the vowel sequence steps on note onsets (rests don't count as syllables).
     if(vowelSynced()){
@@ -963,6 +1206,50 @@
       if(notesSinceVowel % every === 0) applyVowelTarget({ beats });
       notesSinceVowel++;
     }
+  }
+
+  // The vibrato LFO feeds every voice's detune (in cents), so it rides on top of the chorus detune.
+  function connectVibrato(){
+    if(!vibGain) return;
+    vibGain.disconnect();
+    voices.forEach(v => vibGain.connect(v.osc.detune));
+  }
+
+  function teardownExpression(){
+    [vibOsc, noiseSrc].forEach(n => { if(n){ try{ n.stop(); }catch(e){} n.disconnect(); } });
+    [vibGain, breathFilter, breathGain].forEach(n => { if(n) n.disconnect(); });
+    vibOsc = null; vibGain = null; noiseSrc = null; breathFilter = null; breathGain = null;
+  }
+
+  function setupExpression(){
+    teardownExpression();
+    vibOsc = ctx.createOscillator();
+    vibOsc.type = 'sine';
+    vibOsc.frequency.value = 5.5;
+    vibGain = ctx.createGain();
+    vibGain.gain.value = 0;
+    vibOsc.connect(vibGain);
+    vibOsc.start();
+    connectVibrato();
+
+    // Breath: looped white noise, band-limited, joining after the vocal filter so it stays airy.
+    const sr = ctx.sampleRate;
+    const buf = ctx.createBuffer(1, 2*sr, sr);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i] = Math.random()*2 - 1;
+    noiseSrc = ctx.createBufferSource();
+    noiseSrc.buffer = buf;
+    noiseSrc.loop = true;
+    breathFilter = ctx.createBiquadFilter();
+    breathFilter.type = 'bandpass';
+    breathFilter.frequency.value = 2600;
+    breathFilter.Q.value = 0.6;
+    breathGain = ctx.createGain();
+    breathGain.gain.value = 0;
+    noiseSrc.connect(breathFilter);
+    breathFilter.connect(breathGain);
+    breathGain.connect(envGain);
+    noiseSrc.start();
   }
 
   function setupLFO(){
@@ -1104,6 +1391,7 @@
     reverbWet.connect(ctx.destination);
     running = true;
     buildVoices();
+    setupExpression();
     buildVowelSequence();
     notesSinceVowel = 0;
     if(!motif.length) buildMotif();
@@ -1121,6 +1409,7 @@
     clearTimeout(noteTimeoutId);
     voices.forEach(v => { try{v.osc.stop();}catch(e){} });
     if(lfoOsc){ try{lfoOsc.stop();}catch(e){} }
+    teardownExpression();
     voices = [];
     lfoOsc = null; lfoGain = null;
     if(master){ master.disconnect(); }
@@ -1202,6 +1491,16 @@
     if(motif.length) resizeMotif();
   });
   document.getElementById('newMotifBtn').addEventListener('click', buildMotif);
+  document.getElementById('contourShape').addEventListener('change', ()=>{ buildMotif(); });
+  document.getElementById('leapiness').addEventListener('input', e=>{
+    document.getElementById('leapinessVal').textContent = e.target.value+'%';
+  });
+  document.getElementById('exprAmount').addEventListener('input', e=>{
+    document.getElementById('exprAmountVal').textContent = e.target.value+'%';
+  });
+  document.getElementById('exprEvolution').addEventListener('input', e=>{
+    document.getElementById('exprEvolutionVal').textContent = e.target.value+'%';
+  });
   document.getElementById('rhythmEvolution').addEventListener('input', e=>{
     document.getElementById('rhythmEvolutionVal').textContent = e.target.value+'%';
   });
