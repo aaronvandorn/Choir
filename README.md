@@ -20,7 +20,7 @@ Live readout of the current pitch, vowel, and motif position (step and pass numb
 **Choir voices**
 - *Voice count* — how many oscillators sing together
 - *Detune spread* — chorus-style micro-detuning across the voices, in cents
-- *Harmonic* — how the voices are stacked above the melody. At 0% they double it at the unison and octave. As the slider rises they move through fifths, thirds, and sixths, then sevenths and seconds, and finally wide compound intervals (ninths, tenths, elevenths, thirteenths). Every voice is snapped into the current key and mode, and voices are folded down an octave above about 1.1 kHz to keep the top singable
+- *Harmonic* — how the voices are stacked above the melody. At 0% they double it at the unison and octave. As the knob turns up they move through fifths, thirds, and sixths, then sevenths and seconds, and finally wide compound intervals (ninths, tenths, elevenths, thirteenths). Every voice is snapped into the current key and mode, and voices are folded down an octave above about 1.1 kHz to keep the top singable
 - *Formant resonance* — Q of the formant filters
 - *Master volume*
 
@@ -96,3 +96,14 @@ git push
 ```
 
 GitHub Pages rebuilds automatically after a push to `main`.
+
+## Jam Link
+
+Press **Link** in this app and in Logic Rhythm, Boolean Melody Machine and Choir (open each in its own tab or window of the same browser) and they share tempo, start/stop, key and mode, and saved scenes, all locked to one beat grid. **Create room** or **Join** with a short code to do the same with people in other places, and hear each other's apps. See [JAM-LINK.md](JAM-LINK.md) for how it works.
+
+Notes for this app: notes are now placed on a look-ahead timer against the beat grid (no timer drift), and the tempo slider runs 40–240 BPM.
+
+
+## Controls
+
+Every ranged control is a potentiometer: a knob plus a number box. Drag the knob up/right to raise it (hold Shift for fine steps), drag the number up and down the same way, or click the number and type a value (Enter commits, Esc cancels, Up/Down arrows step, Shift = ×10). Double-click a knob to reset it; arrow keys, Home and End work when a knob has focus; the mouse wheel nudges the focused control. Panels are grouped by function set with a colour per set; the round **i** button in each header shows its description. The Jam Link lives in a tab at the bottom of the page.
