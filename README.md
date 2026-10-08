@@ -69,6 +69,17 @@ A sine LFO with a bipolar depth control, routable to either pitch (vibrato) or t
 **Reverb**
 On/off toggle plus five procedurally generated impulse responses — Room, Hall, Plate, Spring, Cathedral — with a wet/dry mix control.
 
+**Patterns**
+Save the whole instrument as a named pattern: every control, the exact motif (pitches, lengths, rests, inflections), and the vowel sequence. Click a saved pattern to recall it; it begins from a clean statement of the phrase. Patterns are kept in the browser's local storage, so they persist on the same browser and device.
+
+**Export**
+While Choir runs, the last 60 seconds of what actually played is kept in memory (nothing is uploaded), randomness and all. It stays available after you press Stop.
+- *Capture last minute* — snapshots the buffer into a timeline showing the waveform and the melody notes
+- *Snap to* — Phrases (each pass through the motif), Bars, or Beats. Tap a cell to select it, tap again to extend, then tap to move the nearer edge
+- *Preview* — plays the selection back
+- *Export WAV* — the selected audio exactly as heard, volume, filter and reverb included (16-bit stereo)
+- *Export MIDI* — one track per choir voice (voice 1 is the melody) plus a tempo track, using the Choir Aahs sound. Note lengths follow the gate length; vibrato, scoop and breath are not written to MIDI. Tempo is taken from the first note of the selection
+
 **Light / dark mode**
 Toggle in the top bar; light mode is the default.
 

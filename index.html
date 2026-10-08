@@ -184,6 +184,26 @@
     transition: background 0.05s;
   }
   .led.lit{ background: var(--teal); }
+  .savebar{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .savebar input[type=text]{
+    flex:1 1 200px; min-width:160px;
+    background:var(--panel-raised); color:var(--ink);
+    border:1px solid var(--line); border-radius:4px;
+    padding:9px 10px; font-size:13px; font-family:inherit;
+  }
+  .snapctl{ display:flex; align-items:center; gap:8px; margin-left:auto; font-size:12px; color:var(--ink-dim); }
+  .snapctl select{ width:auto; }
+  .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .chip{
+    display:flex; align-items:center; gap:8px;
+    background:var(--panel-raised); border:1px solid var(--line); border-radius:16px;
+    padding:6px 8px 6px 12px; font-size:12px; color:var(--ink); cursor:pointer;
+  }
+  .chip:hover{ border-color:var(--accent); }
+  .chip .x{ border:none; background:transparent; padding:0 4px; font-size:12px; color:var(--ink-dim); cursor:pointer; }
+  .chip .x:hover{ color:var(--ink); }
+  .hint{ color:var(--ink-dim); font-size:12px; margin-top:8px; }
+  button:disabled{ opacity:0.45; cursor:default; }
 </style>
 </head>
 <body class="light">
@@ -541,7 +561,42 @@
     </div>
   </div>
 
-  <p class="foot">Runs entirely in the browser via the Web Audio API — no audio is recorded or sent anywhere.</p>
+  <div class="panel">
+    <h2>Patterns</h2>
+    <p class="sub" style="margin:-8px 0 14px;">Save everything you hear: every control, plus the exact phrase (notes, lengths, rests, inflections) and the vowel sequence. Click a saved pattern to bring it back; it starts from a clean statement of the phrase.</p>
+    <div class="savebar">
+      <input type="text" id="patternName" placeholder="Pattern name">
+      <button id="savePatternBtn" class="primary">+ Save current pattern</button>
+    </div>
+    <div id="patternLibrary" class="chips"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Export</h2>
+    <p class="sub" style="margin:-8px 0 14px;">The last minute of what actually played is kept in memory while Choir runs, randomness and all. Press <b>Capture last minute</b>, tap the timeline to select a stretch, preview it, then save it as a <b>WAV</b> (exactly what you heard, reverb included) or a <b>MIDI</b> file (one track per voice, for a DAW). Nothing is uploaded.</p>
+    <div class="savebar">
+      <button id="captureBtn" class="primary">Capture last minute</button>
+      <div class="snapctl"><label for="snapMode">Snap to</label>
+        <select id="snapMode">
+          <option value="phrase" selected>Phrases</option>
+          <option value="bar">Bars</option>
+          <option value="beat">Beats</option>
+        </select>
+      </div>
+    </div>
+    <div id="capturePanel" style="display:none;margin-top:14px;">
+      <canvas id="captureCanvas" width="1120" height="170" style="width:100%;height:170px;display:block;cursor:crosshair;touch-action:manipulation;"></canvas>
+      <div id="captureInfo" class="hint">Tap a cell to start a selection</div>
+      <div class="savebar" style="margin-top:10px;">
+        <button id="previewBtn" disabled>&#9654; Preview</button>
+        <button id="stopPreviewBtn" disabled>&#9632; Stop</button>
+        <button id="exportWavBtn" class="primary" disabled>Export WAV</button>
+        <button id="exportMidiBtn" class="primary" disabled>Export MIDI</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">Runs entirely in the browser via the Web Audio API. The last minute of audio is held in memory so you can export it; nothing is uploaded.</p>
 </div>
 
 <script>
@@ -1100,6 +1155,7 @@
     const bpm = parseFloat(document.getElementById('bpm').value);
     const durationSec = slot.beats * (60/bpm);
     document.getElementById('motifReadout').textContent = (idx+1)+'/'+len+' · pass '+(motifPass+1);
+    if(idx === 0) logPhraseStart();
 
     if(slot.rest && restIsEnabled()){
       restOn();
@@ -1108,6 +1164,7 @@
       const expr = buildExpression(slot, idx, len, pool.length);
       document.getElementById('exprReadout').textContent = expr.label;
       noteOn(durationSec, slot.beats, pool[slot.pi], expr);
+      logNote(durationSec, slot.beats, pool[slot.pi], expr);
     }
 
     motifIndex++;
@@ -1392,7 +1449,9 @@
     running = true;
     buildVoices();
     setupExpression();
-    buildVowelSequence();
+    setupRecorder();
+    if(vowelSequence.length !== parseInt(document.getElementById('vowelSteps').value,10)) buildVowelSequence();
+    vowelStepIndex = 0;
     notesSinceVowel = 0;
     if(!motif.length) buildMotif();
     motifIndex = 0;
@@ -1410,6 +1469,7 @@
     voices.forEach(v => { try{v.osc.stop();}catch(e){} });
     if(lfoOsc){ try{lfoOsc.stop();}catch(e){} }
     teardownExpression();
+    teardownRecorder();
     voices = [];
     lfoOsc = null; lfoGain = null;
     if(master){ master.disconnect(); }
@@ -1582,6 +1642,466 @@
     document.getElementById('reverbMixVal').textContent = e.target.value+'%';
     updateReverbMix();
   });
+
+  // ===== Pattern save / load =====
+  const PATTERN_KEY = 'choirPatterns';
+  const PATTERN_SKIP = new Set(['patternName', 'snapMode']);
+  let patterns = [];
+
+  function persistPatterns(){ try{ localStorage.setItem(PATTERN_KEY, JSON.stringify(patterns)); }catch(e){} }
+  function loadPersistedPatterns(){
+    try{ const raw = localStorage.getItem(PATTERN_KEY); if(raw) patterns = JSON.parse(raw) || []; }
+    catch(e){ patterns = []; }
+  }
+
+  function captureState(){
+    const controls = {};
+    document.querySelectorAll('.rack input[id], .rack select[id]').forEach(el => {
+      if(PATTERN_SKIP.has(el.id)) return;
+      controls[el.id] = el.type === 'checkbox' ? el.checked : el.value;
+    });
+    document.querySelectorAll('#inflections input[data-infl]').forEach(el => { controls['infl:' + el.dataset.infl] = el.checked; });
+    return {
+      controls,
+      reverbOn: reverbEnabled,
+      motif: JSON.parse(JSON.stringify(motif)),
+      vowelSequence: vowelSequence.slice()
+    };
+  }
+
+  function applyState(state){
+    const c = state.controls || {};
+    Object.keys(c).forEach(key => {
+      let el;
+      if(key.indexOf('infl:') === 0) el = document.querySelector('#inflections input[data-infl="' + key.slice(5) + '"]');
+      else el = document.getElementById(key);
+      if(!el) return;
+      if(el.type === 'checkbox'){ el.checked = !!c[key]; el.dispatchEvent(new Event('change')); }
+      else {
+        el.value = c[key];
+        el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input'));
+      }
+    });
+    if(typeof state.reverbOn === 'boolean' && state.reverbOn !== reverbEnabled) document.getElementById('reverbToggle').click();
+    // The controls above rebuild the motif and vowel sequence; put back the saved phrase itself.
+    if(state.motif && state.motif.length){ motif = JSON.parse(JSON.stringify(state.motif)); }
+    if(state.vowelSequence && state.vowelSequence.length){ vowelSequence = state.vowelSequence.slice(); }
+    motifIndex = 0; motifPass = 0;
+    vowelStepIndex = 0; notesSinceVowel = 0;
+  }
+
+  function defaultPatternName(){
+    const key = document.getElementById('keySelect');
+    const mode = document.getElementById('modeSelect');
+    return 'Pattern ' + (patterns.length + 1) + ' — ' + key.options[key.selectedIndex].text + ' ' +
+           mode.options[mode.selectedIndex].text + ' @ ' + document.getElementById('bpm').value + ' bpm';
+  }
+
+  function renderPatternLibrary(){
+    const lib = document.getElementById('patternLibrary');
+    lib.innerHTML = '';
+    if(!patterns.length){
+      const h = document.createElement('div');
+      h.className = 'hint'; h.style.marginTop = '0';
+      h.textContent = 'No saved patterns yet.';
+      lib.appendChild(h);
+      return;
+    }
+    patterns.forEach(p => {
+      const chip = document.createElement('div');
+      chip.className = 'chip';
+      const label = document.createElement('span');
+      label.textContent = p.name;
+      label.addEventListener('click', () => { applyState(p.state); });
+      const del = document.createElement('button');
+      del.className = 'x'; del.title = 'Delete'; del.textContent = '✕';
+      del.addEventListener('click', e => {
+        e.stopPropagation();
+        patterns = patterns.filter(q => q.id !== p.id);
+        persistPatterns(); renderPatternLibrary();
+        document.getElementById('patternName').placeholder = defaultPatternName();
+      });
+      chip.appendChild(label); chip.appendChild(del);
+      lib.appendChild(chip);
+    });
+  }
+
+  document.getElementById('savePatternBtn').addEventListener('click', () => {
+    const input = document.getElementById('patternName');
+    const name = (input.value || '').trim() || defaultPatternName();
+    patterns.push({ id: 'p' + Date.now(), name, state: captureState() });
+    persistPatterns(); renderPatternLibrary();
+    input.value = '';
+    input.placeholder = defaultPatternName();
+  });
+
+  // ===== Rolling capture of what actually played =====
+  const CAPTURE_SECONDS = 60;
+  let recNode = null, recTap = null;
+  let recChunks = [];   // { frame, l, r } - audio blocks, frame = ctx.currentTime * sampleRate
+  let noteLog = [];     // every note actually played (for MIDI)
+  let phraseLog = [];   // time each pass through the motif began
+  let gridAnchor = 0;   // time the current run started, for bar and beat grids
+
+  function logTrim(now){
+    const cutoff = now - (CAPTURE_SECONDS + 10);
+    while(noteLog.length && noteLog[0].time < cutoff) noteLog.shift();
+    while(phraseLog.length && phraseLog[0] < cutoff) phraseLog.shift();
+  }
+
+  function logPhraseStart(){ phraseLog.push(ctx.currentTime); }
+
+  function logNote(durationSec, beats, melodySemis, expr){
+    const now = ctx.currentTime;
+    const sc = currentScale();
+    const notes = voices.map(v => {
+      const f = sc.root * Math.pow(2, voiceSemisFor(melodySemis, v.ideal || 0, sc)/12);
+      return Math.round(69 + 12*Math.log2(f/440));
+    });
+    const gateFrac = parseFloat(document.getElementById('gateLen').value)/100;
+    noteLog.push({
+      time: now, dur: durationSec, gate: Math.max(0.02, Math.min(durationSec, durationSec*gateFrac)),
+      bpm: parseFloat(document.getElementById('bpm').value), notes,
+      vel: expr.accent ? 115 : Math.round(95*expr.level)
+    });
+    logTrim(now);
+  }
+
+  function pushChunk(frame, l, r){
+    recChunks.push({ frame, l, r });
+    const last = recChunks[recChunks.length-1];
+    const keepFrom = last.frame + last.l.length - (CAPTURE_SECONDS + 5) * ctx.sampleRate;
+    while(recChunks.length > 1 && recChunks[0].frame + recChunks[0].l.length < keepFrom) recChunks.shift();
+  }
+
+  const RECORDER_SRC = `
+    class ChoirRec extends AudioWorkletProcessor {
+      constructor(){ super(); this.size = 4096; this.reset(); this.port.onmessage = () => this.flush(); }
+      reset(){ this.l = new Float32Array(this.size); this.r = new Float32Array(this.size); this.n = 0; this.f0 = currentFrame; }
+      flush(){
+        if(!this.n) return;
+        const l = this.l.slice(0, this.n), r = this.r.slice(0, this.n);
+        this.port.postMessage({ frame: this.f0, l, r }, [l.buffer, r.buffer]);
+        this.reset();
+      }
+      process(inputs){
+        const inp = inputs[0] || [];
+        const a = inp[0], b = inp[1] || inp[0];
+        const len = 128;
+        if(this.n === 0) this.f0 = currentFrame;
+        for(let i=0;i<len;i++){ this.l[this.n+i] = a ? a[i] : 0; this.r[this.n+i] = b ? b[i] : 0; }
+        this.n += len;
+        if(this.n >= this.size) this.flush();
+        return true;
+      }
+    }
+    registerProcessor('choir-rec', ChoirRec);`;
+  let recModuleReady = null;
+
+  function setupRecorder(){
+    teardownRecorder(true);
+    recTap = ctx.createGain();
+    recTap.gain.value = 1;
+    gridAnchor = ctx.currentTime;
+    if(reverbDry) reverbDry.connect(recTap);
+    if(reverbWet) reverbWet.connect(recTap);
+    const myTap = recTap;
+    if(ctx.audioWorklet && window.Blob && window.URL){
+      if(!recModuleReady || recModuleReady.ctx !== ctx){
+        const url = URL.createObjectURL(new Blob([RECORDER_SRC], { type:'application/javascript' }));
+        recModuleReady = { ctx, promise: ctx.audioWorklet.addModule(url) };
+      }
+      recModuleReady.promise.then(() => {
+        if(recTap !== myTap) return; // stopped or restarted while the module loaded
+        const node = new AudioWorkletNode(ctx, 'choir-rec', { numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2] });
+        node.port.onmessage = e => pushChunk(e.data.frame, e.data.l, e.data.r);
+        myTap.connect(node); node.connect(ctx.destination);
+        recNode = node;
+      }).catch(() => { if(recTap === myTap) setupScriptRecorder(myTap); });
+    } else {
+      setupScriptRecorder(myTap);
+    }
+  }
+
+  // Older browsers: a ScriptProcessor does the same job.
+  function setupScriptRecorder(tap){
+    const node = ctx.createScriptProcessor(4096, 2, 2);
+    node.onaudioprocess = e => {
+      const a = e.inputBuffer.getChannelData(0), b = e.inputBuffer.getChannelData(Math.min(1, e.inputBuffer.numberOfChannels-1));
+      pushChunk(Math.round(e.playbackTime * ctx.sampleRate), new Float32Array(a), new Float32Array(b));
+    };
+    tap.connect(node); node.connect(ctx.destination);
+    recNode = node;
+  }
+
+  function teardownRecorder(immediate){
+    const node = recNode, tap = recTap;
+    recNode = null; recTap = null;
+    if(!node){ if(tap) tap.disconnect(); return; }
+    const finish = () => { try{ tap.disconnect(); node.disconnect(); }catch(e){} if(node.port) node.port.onmessage = null; };
+    if(node.port && !immediate){
+      node.port.postMessage('flush'); // hand over the last partial block, then let go
+      setTimeout(finish, 250);
+    } else finish();
+  }
+
+  // ===== Capture panel: snapshot, timeline, selection =====
+  let snap = null;      // { l, r, startFrame, endFrame, sr, peaks, events, phrases, anchor, bpm }
+  let bounds = [];      // cell boundaries in seconds from the snapshot start
+  let selA = 0, selB = 0, selAnchor = 0, selStage = 0, hasSel = false;
+  let previewSrc = null;
+
+  function captureSnapshot(){
+    stopPreview();
+    hasSel = false; selStage = 0;
+    ['previewBtn','exportWavBtn','exportMidiBtn'].forEach(id => { document.getElementById(id).disabled = true; });
+    document.getElementById('capturePanel').style.display = 'block';
+    if(!ctx || !recChunks.length){
+      snap = null; bounds = [];
+      document.getElementById('captureInfo').textContent = 'Nothing captured yet — press Start and let it sing for a bit first.';
+      drawCapture();
+      return;
+    }
+    const sr = ctx.sampleRate;
+    const last = recChunks[recChunks.length-1];
+    const endFrame = last.frame + last.l.length;
+    const startFrame = Math.max(recChunks[0].frame, endFrame - CAPTURE_SECONDS*sr);
+    const n = endFrame - startFrame;
+    const l = new Float32Array(n), r = new Float32Array(n);
+    recChunks.forEach(ch => {
+      const off = ch.frame - startFrame;
+      if(off + ch.l.length <= 0 || off >= n) return;
+      const from = Math.max(0, -off);
+      const to = Math.min(ch.l.length, n - off);
+      l.set(ch.l.subarray(from, to), off + from);
+      r.set(ch.r.subarray(from, to), off + from);
+    });
+    const t0 = startFrame/sr, t1 = endFrame/sr;
+    const cols = 1120, peaks = new Float32Array(cols);
+    const per = n/cols;
+    for(let c=0;c<cols;c++){
+      let m = 0;
+      for(let i=Math.floor(c*per); i<Math.floor((c+1)*per); i++){ const v = Math.max(Math.abs(l[i]), Math.abs(r[i])); if(v > m) m = v; }
+      peaks[c] = m;
+    }
+    snap = {
+      l, r, sr, startFrame, endFrame, t0, t1, peaks,
+      events: noteLog.filter(e => e.time + e.gate > t0 && e.time < t1),
+      phrases: phraseLog.filter(t => t > t0 && t < t1),
+      anchor: gridAnchor,
+      bpm: parseFloat(document.getElementById('bpm').value)
+    };
+    buildBounds();
+    document.getElementById('captureInfo').textContent = snap.events.length
+      ? 'Tap a cell to start a selection (' + (t1-t0).toFixed(0) + ' s captured)'
+      : 'Audio captured, but no notes in this stretch — nothing to select.';
+    drawCapture();
+  }
+  document.getElementById('captureBtn').addEventListener('click', captureSnapshot);
+
+  function buildBounds(){
+    if(!snap) return;
+    const mode = document.getElementById('snapMode').value;
+    const dur = snap.t1 - snap.t0;
+    let pts = [];
+    if(mode === 'phrase') pts = snap.phrases.map(t => t - snap.t0);
+    else {
+      const step = (mode === 'bar' ? 4 : 1) * 60/snap.bpm;
+      for(let t = snap.anchor + Math.ceil((snap.t0 - snap.anchor)/step)*step; t < snap.t1; t += step) pts.push(t - snap.t0);
+    }
+    bounds = [0];
+    pts.sort((a,b) => a-b).forEach(p => { if(p > bounds[bounds.length-1] + 0.05 && p < dur - 0.05) bounds.push(p); });
+    bounds.push(dur);
+  }
+  document.getElementById('snapMode').addEventListener('change', () => {
+    if(!snap) return;
+    stopPreview(); hasSel = false; selStage = 0;
+    ['previewBtn','exportWavBtn','exportMidiBtn'].forEach(id => { document.getElementById(id).disabled = true; });
+    buildBounds();
+    document.getElementById('captureInfo').textContent = 'Tap a cell to start a selection';
+    drawCapture();
+  });
+
+  function selRange(){ return hasSel ? { s: bounds[selA], e: bounds[selB+1] } : null; }
+
+  function cellAt(x){
+    const t = x/1120 * (snap.t1 - snap.t0);
+    let i = 0;
+    while(i < bounds.length-2 && bounds[i+1] <= t) i++;
+    return i;
+  }
+
+  document.getElementById('captureCanvas').addEventListener('click', e => {
+    if(!snap || bounds.length < 2) return;
+    const cv = e.currentTarget, rect = cv.getBoundingClientRect();
+    const c = cellAt((e.clientX - rect.left)/rect.width * cv.width);
+    stopPreview();
+    if(selStage === 0 || !hasSel){ selA = selB = selAnchor = c; selStage = 1; }
+    else if(selStage === 1){ selA = Math.min(selAnchor, c); selB = Math.max(selAnchor, c); selStage = 2; }
+    else if(Math.abs(c - selA) <= Math.abs(c - selB)) selA = Math.min(c, selB);
+    else selB = Math.max(c, selA);
+    hasSel = true;
+    const r = selRange();
+    const any = snap.events.some(ev => ev.time - snap.t0 >= r.s && ev.time - snap.t0 < r.e);
+    document.getElementById('captureInfo').textContent =
+      (selB - selA + 1) + ' cell' + (selB === selA ? '' : 's') + ' selected (' + (r.e - r.s).toFixed(1) + ' s) — tap again to move the nearer edge';
+    document.getElementById('previewBtn').disabled = false;
+    document.getElementById('exportWavBtn').disabled = false;
+    document.getElementById('exportMidiBtn').disabled = !any;
+    drawCapture();
+  });
+
+  function drawCapture(){
+    const cv = document.getElementById('captureCanvas');
+    const g = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+    g.clearRect(0, 0, W, H);
+    if(!snap) return;
+    const dur = snap.t1 - snap.t0;
+    const accent = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#3a6ea5';
+    // cell boundaries
+    g.lineWidth = 1; g.strokeStyle = 'rgba(255,255,255,0.14)';
+    bounds.forEach(b => { const x = Math.round(b/dur*W) + 0.5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); });
+    // waveform
+    g.fillStyle = 'rgba(79,179,163,0.45)';
+    for(let c=0;c<snap.peaks.length;c++){
+      const h = Math.min(1, snap.peaks[c]*1.6) * (H*0.5);
+      g.fillRect(c, H/2 - h, 1, h*2);
+    }
+    // notes: the melody voice as bars on a pitch lane
+    const lead = snap.events.map(e => e.notes[0]).filter(n => n !== undefined);
+    if(lead.length){
+      const lo = Math.min.apply(null, lead), hi = Math.max.apply(null, lead), span = Math.max(1, hi - lo);
+      g.fillStyle = '#e0a83a';
+      snap.events.forEach(e => {
+        if(e.notes[0] === undefined) return;
+        const x = (e.time - snap.t0)/dur*W, w = Math.max(2, e.gate/dur*W);
+        const y = H - 14 - (e.notes[0] - lo)/span * (H - 28);
+        g.fillRect(x, y - 2, w, 4);
+      });
+    }
+    // selection
+    const r = selRange();
+    if(r){
+      const x1 = r.s/dur*W, x2 = r.e/dur*W;
+      g.fillStyle = 'rgba(111,168,220,0.22)'; g.fillRect(x1, 0, x2-x1, H);
+      g.strokeStyle = accent === '#3a6ea5' ? '#6fa8dc' : accent; g.lineWidth = 2;
+      g.strokeRect(x1 + 1, 1, x2 - x1 - 2, H - 2);
+    }
+  }
+
+  function sliceSelection(){
+    const r = selRange();
+    const a = Math.round(r.s*snap.sr), b = Math.min(snap.l.length, Math.round(r.e*snap.sr));
+    return { l: snap.l.subarray(a, b), r: snap.r.subarray(a, b), s: r.s, e: r.e };
+  }
+
+  function stopPreview(){
+    if(previewSrc){ try{ previewSrc.onended = null; previewSrc.stop(); }catch(e){} previewSrc = null; }
+    document.getElementById('stopPreviewBtn').disabled = true;
+  }
+  document.getElementById('stopPreviewBtn').addEventListener('click', stopPreview);
+  document.getElementById('previewBtn').addEventListener('click', () => {
+    if(!snap || !hasSel) return;
+    stopPreview();
+    if(ctx.state === 'suspended') ctx.resume();
+    const s = sliceSelection();
+    const buf = ctx.createBuffer(2, s.l.length, snap.sr);
+    buf.copyToChannel(s.l, 0); buf.copyToChannel(s.r, 1);
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.connect(ctx.destination);
+    src.onended = () => { if(previewSrc === src){ previewSrc = null; document.getElementById('stopPreviewBtn').disabled = true; } };
+    src.start();
+    previewSrc = src;
+    document.getElementById('stopPreviewBtn').disabled = false;
+  });
+
+  function downloadBlob(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  function encodeWav(l, r, sr){
+    const n = l.length, len = 44 + n*4;
+    const view = new DataView(new ArrayBuffer(len));
+    const str = (o, s) => { for(let i=0;i<s.length;i++) view.setUint8(o+i, s.charCodeAt(i)); };
+    str(0,'RIFF'); view.setUint32(4, len-8, true); str(8,'WAVE'); str(12,'fmt ');
+    view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,2,true);
+    view.setUint32(24,sr,true); view.setUint32(28,sr*4,true); view.setUint16(32,4,true); view.setUint16(34,16,true);
+    str(36,'data'); view.setUint32(40, n*4, true);
+    let o = 44;
+    for(let i=0;i<n;i++){
+      const a = Math.max(-1, Math.min(1, l[i])), b = Math.max(-1, Math.min(1, r[i]));
+      view.setInt16(o, a < 0 ? a*0x8000 : a*0x7FFF, true); o += 2;
+      view.setInt16(o, b < 0 ? b*0x8000 : b*0x7FFF, true); o += 2;
+    }
+    return new Blob([view.buffer], { type:'audio/wav' });
+  }
+
+  function vlq(v){ const b = [v & 0x7F]; v >>= 7; while(v > 0){ b.unshift((v & 0x7F) | 0x80); v >>= 7; } return b; }
+  const be16 = n => [(n>>8)&255, n&255];
+  const be32 = n => [(n>>>24)&255, (n>>>16)&255, (n>>8)&255, n&255];
+  const ascii = s => Array.from(s).map(c => c.charCodeAt(0));
+
+  function buildTrack(msgs){
+    msgs.sort((a, b) => a.tick - b.tick || a.order - b.order);
+    const out = []; let last = 0;
+    msgs.forEach(m => { out.push.apply(out, vlq(m.tick - last).concat(m.bytes)); last = m.tick; });
+    out.push(0x00, 0xFF, 0x2F, 0x00);
+    return ascii('MTrk').concat(be32(out.length), out);
+  }
+
+  // Format 1: a tempo track, then one track per choir voice (voice 1 is the melody).
+  function buildMidi(events, startSec){
+    const PPQ = 480;
+    const bpm = events.length ? events[0].bpm : snap.bpm;
+    const ticks = sec => Math.max(0, Math.round(sec * bpm/60 * PPQ));
+    const us = Math.round(60000000/bpm);
+    const nVoices = events.reduce((m, e) => Math.max(m, e.notes.length), 0);
+    const tracks = [buildTrack([
+      { tick:0, order:0, bytes:[0xFF,0x51,0x03,(us>>16)&255,(us>>8)&255,us&255] },
+      { tick:0, order:0, bytes:[0xFF,0x58,0x04,4,2,24,8] }
+    ])];
+    for(let v=0; v<nVoices; v++){
+      const ch = v < 9 ? v : v + 1; // channel 10 is percussion
+      const name = ascii(v === 0 ? 'Choir melody' : 'Choir voice ' + (v+1));
+      const msgs = [
+        { tick:0, order:0, bytes:[0xFF,0x03].concat(vlq(name.length), name) },
+        { tick:0, order:0, bytes:[0xC0|(ch&15), 52] } // Choir Aahs
+      ];
+      events.forEach(e => {
+        if(e.notes[v] === undefined) return;
+        const on = ticks(e.time - startSec);
+        const off = Math.max(on + 1, ticks(e.time - startSec + e.gate));
+        const note = Math.max(0, Math.min(127, e.notes[v]));
+        msgs.push({ tick:on,  order:1, bytes:[0x90|(ch&15), note, e.vel] });
+        msgs.push({ tick:off, order:0, bytes:[0x80|(ch&15), note, 0] });
+      });
+      tracks.push(buildTrack(msgs));
+    }
+    const header = ascii('MThd').concat(be32(6), be16(1), be16(tracks.length), be16(PPQ));
+    return new Uint8Array(header.concat.apply(header, tracks));
+  }
+
+  document.getElementById('exportWavBtn').addEventListener('click', () => {
+    if(!snap || !hasSel) return;
+    const s = sliceSelection();
+    downloadBlob(encodeWav(s.l, s.r, snap.sr), 'choir-selection.wav');
+  });
+  document.getElementById('exportMidiBtn').addEventListener('click', () => {
+    if(!snap || !hasSel) return;
+    const r = selRange();
+    const events = snap.events.filter(e => e.time - snap.t0 >= r.s && e.time - snap.t0 < r.e);
+    if(!events.length) return;
+    downloadBlob(new Blob([buildMidi(events, snap.t0 + r.s)], { type:'audio/midi' }), 'choir-selection.mid');
+  });
+
+  loadPersistedPatterns();
+  renderPatternLibrary();
+  document.getElementById('patternName').placeholder = defaultPatternName();
 
   updateVowelSyncUI();
   drawVowelSpace();
