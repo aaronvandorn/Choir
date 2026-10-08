@@ -213,6 +213,10 @@
         <div class="label">Vowel</div>
         <div class="value teal" id="vowelReadout">—</div>
       </div>
+      <div class="readout">
+        <div class="label">Motif</div>
+        <div class="value" id="motifReadout" style="font-size:18px;padding-top:6px;">—</div>
+      </div>
       <canvas id="vowelSpace" width="260" height="180"></canvas>
     </div>
   </div>
@@ -234,6 +238,7 @@
         <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink-dim);margin-top:4px;">
           <span>close, simple</span><span>wide, complex</span>
         </div>
+        <div style="font-size:11px;color:var(--ink-dim);margin-top:4px;">Voices follow the melody and always stay inside the key and mode below.</div>
       </div>
       <div class="ctrl">
         <label>Formant resonance <span class="val" id="resVal">10</span></label>
@@ -248,7 +253,7 @@
 
   <div class="panel">
     <h2>Pitch — quantized sample &amp; hold</h2>
-    <p class="sub" style="margin:-8px 0 14px;">Note timing now comes from the rhythm engine below — this section only picks which note gets sampled.</p>
+    <p class="sub" style="margin:-8px 0 14px;">Plays a short repeating motif. The first pass states it cleanly, then Evolution mutates it a little each time round. Note lengths and rests come from the rhythm engine below.</p>
     <div class="row">
       <div class="ctrl">
         <label>Key</label>
@@ -294,8 +299,13 @@
         <input type="range" id="pitchCharacter" min="1" max="20" step="1" value="4">
       </div>
       <div class="ctrl" style="flex:1 1 100%;">
-        <label>Evolution <span class="val" id="pitchEvolutionVal">50%</span></label>
-        <input type="range" id="pitchEvolution" min="0" max="100" step="1" value="50">
+        <label>Motif length <span class="val" id="motifLengthVal">8 notes</span></label>
+        <input type="range" id="motifLength" min="2" max="16" step="1" value="8">
+        <button id="newMotifBtn" style="margin-top:8px;padding:6px 14px;">New motif</button>
+      </div>
+      <div class="ctrl" style="flex:1 1 100%;">
+        <label>Pitch evolution <span class="val" id="pitchEvolutionVal">25%</span></label>
+        <input type="range" id="pitchEvolution" min="0" max="100" step="1" value="25">
         <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink-dim);margin-top:4px;">
           <span>static</span><span>evolving</span><span>random</span>
         </div>
@@ -305,7 +315,7 @@
 
   <div class="panel">
     <h2>Rhythm engine</h2>
-    <p class="sub" style="margin:-8px 0 14px;">Each note's length is drawn at random from the values you enable below — that variety is the rhythmic complexity.</p>
+    <p class="sub" style="margin:-8px 0 14px;">Each slot in the motif gets a note length (or a rest) from the values you enable below. Rhythm evolution sets how often a slot is re-rolled on later passes.</p>
     <div class="row">
       <div class="ctrl">
         <label>Tempo <span class="val" id="bpmVal">96 BPM</span></label>
@@ -323,6 +333,13 @@
         <label>Release <span class="val" id="releaseVal">80 ms</span></label>
         <input type="range" id="release" min="5" max="500" step="1" value="80">
       </div>
+      <div class="ctrl" style="flex:1 1 100%;">
+        <label>Rhythm evolution <span class="val" id="rhythmEvolutionVal">20%</span></label>
+        <input type="range" id="rhythmEvolution" min="0" max="100" step="1" value="20">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink-dim);margin-top:4px;">
+          <span>static</span><span>evolving</span><span>random</span>
+        </div>
+      </div>
     </div>
     <div class="row" id="noteValues" style="margin-top:14px;gap:10px;">
       <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-dim);flex:0 0 auto;"><input type="checkbox" data-beats="4"> whole</label>
@@ -337,16 +354,74 @@
   </div>
 
   <div class="panel">
-    <h2>Vowel — quantized sample &amp; hold</h2>
-    <p class="sub" style="margin:-8px 0 14px;">Each step holds a position along the vowel space (i → e → a → o → u), so the run of steps glides between them like syllables in a spoken line.</p>
+    <h2>Filter envelope</h2>
+    <p class="sub" style="margin:-8px 0 14px;">A filter over the whole choir output, swept by its own envelope on every note.</p>
     <div class="row">
       <div class="ctrl">
+        <label>Type</label>
+        <select id="filterType">
+          <option value="lowpass" selected>Low-pass</option>
+          <option value="highpass">High-pass</option>
+          <option value="bandpass">Band-pass</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <label>Cutoff <span class="val" id="filterCutoffVal">1200 Hz</span></label>
+        <input type="range" id="filterCutoff" min="100" max="8000" step="10" value="1200">
+      </div>
+      <div class="ctrl">
+        <label>Resonance <span class="val" id="filterResVal">2.0</span></label>
+        <input type="range" id="filterRes" min="0.5" max="20" step="0.1" value="2">
+      </div>
+      <div class="ctrl">
+        <label>Envelope amount <span class="val" id="filterEnvAmountVal">+2.0 oct</span></label>
+        <input type="range" id="filterEnvAmount" min="-4" max="4" step="0.1" value="2">
+      </div>
+      <div class="ctrl">
+        <label>Attack <span class="val" id="filterAttackVal">10 ms</span></label>
+        <input type="range" id="filterAttack" min="1" max="1000" step="1" value="10">
+      </div>
+      <div class="ctrl">
+        <label>Decay <span class="val" id="filterDecayVal">150 ms</span></label>
+        <input type="range" id="filterDecay" min="1" max="2000" step="1" value="150">
+      </div>
+      <div class="ctrl">
+        <label>Sustain <span class="val" id="filterSustainVal">40%</span></label>
+        <input type="range" id="filterSustain" min="0" max="100" step="1" value="40">
+      </div>
+      <div class="ctrl">
+        <label>Release <span class="val" id="filterReleaseVal">200 ms</span></label>
+        <input type="range" id="filterRelease" min="1" max="2000" step="1" value="200">
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Vowel — quantized sample &amp; hold</h2>
+    <p class="sub" style="margin:-8px 0 14px;">Each step holds a position along the vowel space (a → e → i → o → u). In note-synced mode the sequence advances on note onsets, so each note is a syllable.</p>
+    <div class="row">
+      <div class="ctrl">
+        <label>Vowel changes</label>
+        <select id="vowelSync">
+          <option value="notes" selected>On note onsets</option>
+          <option value="free">Free clock</option>
+        </select>
+      </div>
+      <div class="ctrl" id="vowelRateCtrl" hidden>
         <label>Clock rate <span class="val" id="vowelRateVal">0.25 Hz</span></label>
         <input type="range" id="vowelRate" min="0.05" max="6" step="0.05" value="0.25">
       </div>
+      <div class="ctrl" id="vowelEveryCtrl">
+        <label>Change every <span class="val" id="vowelEveryVal">1 note</span></label>
+        <input type="range" id="vowelEvery" min="1" max="4" step="1" value="1">
+      </div>
       <div class="ctrl">
-        <label>Glide time (slide) <span class="val" id="vowelGlideVal">900 ms</span></label>
-        <input type="range" id="vowelGlide" min="20" max="4000" step="20" value="900">
+        <label>Glide time (slide) <span class="val" id="vowelGlideVal">300 ms</span></label>
+        <input type="range" id="vowelGlide" min="20" max="4000" step="20" value="300">
+      </div>
+      <div class="ctrl" id="vowelOpenCtrl">
+        <label>Long-note open vowels <span class="val" id="vowelOpenVal">70%</span></label>
+        <input type="range" id="vowelOpen" min="0" max="100" step="1" value="70">
       </div>
       <div class="ctrl" style="flex:1 1 100%;">
         <label>Steps <span class="val" id="vowelStepsVal">8</span></label>
@@ -433,6 +508,7 @@
   let ctx = null;
   let master = null;
   let envGain = null;
+  let vocalFilter = null;
   let reverbConvolver = null, reverbDry = null, reverbWet = null, reverbEnabled = true;
   let voices = [];
   let lfoOsc = null, lfoGain = null;
@@ -444,14 +520,21 @@
   function freshState(v){ return { startVal:v, startTime:0, endVal:v, endTime:0 }; }
   let pitchState = freshState(130.81);
   let formantState = [
-    freshState(VOWELS[2].f1), freshState(VOWELS[2].f2), freshState(VOWELS[2].f3)
+    freshState(VOWELS[0].f1), freshState(VOWELS[0].f2), freshState(VOWELS[0].f3)
   ];
   let ampState = [
-    freshState(VOWELS[2].amp[0]), freshState(VOWELS[2].amp[1]), freshState(VOWELS[2].amp[2])
+    freshState(VOWELS[0].amp[0]), freshState(VOWELS[0].amp[1]), freshState(VOWELS[0].amp[2])
   ];
-  let pitchPoolIndex = 0;
   let vowelSequence = [];
   let vowelStepIndex = 0;
+  let notesSinceVowel = 0;
+
+  // Motif memory: a short phrase of slots that loops and mutates on later passes.
+  // Each slot: { pi: index into the current note pool, beats: note length, rest: bool }
+  let motif = [];
+  let motifIndex = 0;
+  let motifPass = 0;
+  let currentMelodySemis = 0; // semitones above the key root
 
   function currentValue(state, now){
     if(!state.startTime || now >= state.endTime) return state.endVal;
@@ -473,19 +556,53 @@
     state.endVal = targetValue; state.endTime = now + Math.max(glideSeconds,0.001);
   }
 
-  // Ranked roughly consonant -> dissonant/complex, used to build voicings
-  const HARMONIC_INTERVALS = [0,12,7,4,9,3,10,2,11,5,8,6,1];
+  function clamp(x, lo, hi){ return Math.max(lo, Math.min(hi, x)); }
+
+  // ----- Key / mode helpers -----
+  function currentScale(){
+    const key = parseInt(document.getElementById('keySelect').value,10);
+    const intervals = MODES[document.getElementById('modeSelect').value];
+    return { root: C3 * Math.pow(2, key/12), intervals };
+  }
+
+  // Nearest tone of the mode (semitones above the key root, any octave). Ties resolve
+  // downward, which lands on the diatonic third / sixth / etc. above each scale degree.
+  function snapToScale(semis, intervals){
+    const baseOct = Math.floor(semis/12);
+    let best = null, bestDist = Infinity;
+    for(let o=baseOct-1; o<=baseOct+1; o++){
+      for(const s of intervals){
+        const cand = o*12 + s;
+        const d = Math.abs(cand - semis);
+        if(d < bestDist || (d === bestDist && cand < best)){ best = cand; bestDist = d; }
+      }
+    }
+    return best;
+  }
+
+  // Ideal intervals above the melody, ordered close/simple -> wide/complex. Intervals past 12
+  // are compound (ninth, tenth, eleventh, thirteenth), which is what makes the top end wide.
+  // Each voice is placed at its ideal interval, then snapped into the key and mode.
+  const HARMONIC_INTERVALS = [0,12,7,4,9,11,2,5,14,16,17,21];
+  const VOICE_CEILING_HZ = 1100; // voices folded down an octave above this, to keep the top singable
 
   function computeHarmonicOffsets(n, harmonicFrac){
     const maxIdx = HARMONIC_INTERVALS.length - 1;
     const reach = harmonicFrac * maxIdx;
-    const offsets = [0]; // voice 0 always sits on the root
+    const offsets = [0]; // voice 0 always sings the melody
     for(let i=1;i<n;i++){
       const t = (n <= 2) ? 1 : (i-1)/(n-2); // this voice's position from nearest (0) to farthest (1)
       const rank = Math.min(maxIdx, 1 + Math.round(t*reach));
       offsets.push(HARMONIC_INTERVALS[rank]);
     }
     return offsets;
+  }
+
+  // Where a voice sits (semitones above key root) for a given melody note.
+  function voiceSemisFor(melodySemis, ideal, sc){
+    let s = snapToScale(melodySemis + ideal, sc.intervals);
+    while(s > melodySemis && sc.root * Math.pow(2, s/12) > VOICE_CEILING_HZ) s -= 12;
+    return s;
   }
 
   function buildVoices(){
@@ -497,10 +614,10 @@
     const harmonicFrac = parseFloat(document.getElementById('harmonic').value)/100;
     const harmonicOffsets = computeHarmonicOffsets(n, harmonicFrac);
     const now = ctx.currentTime;
-    const rootFreq = currentValue(pitchState, now);
+    const sc = currentScale();
     for(let i=0;i<n;i++){
-      const harmonicSemis = harmonicOffsets[i];
-      const voiceFreq = rootFreq * Math.pow(2, harmonicSemis/12);
+      const ideal = harmonicOffsets[i];
+      const voiceFreq = sc.root * Math.pow(2, voiceSemisFor(currentMelodySemis, ideal, sc)/12);
       const osc = ctx.createOscillator();
       osc.type = 'sawtooth';
       const offset = n === 1 ? 0 : (i - (n-1)/2) / ((n-1)/2) * spread;
@@ -525,7 +642,7 @@
       }
       voiceGain.connect(master);
       osc.start();
-      voices.push({ osc, filters, gains, voiceGain, harmonicSemis, freqState: freshState(voiceFreq) });
+      voices.push({ osc, filters, gains, voiceGain, ideal, freqState: freshState(voiceFreq) });
     }
   }
 
@@ -541,34 +658,102 @@
     return pool;
   }
 
-  function pickPitchSemis(stepChoices){
-    const pool = buildNotePool(stepChoices);
-    if(pitchPoolIndex >= pool.length) pitchPoolIndex = pool.length - 1;
-    const evo = parseFloat(document.getElementById('pitchEvolution').value)/100;
-    // evo=0: index never changes (static). evo=1: index can jump anywhere (random).
-    // In between: changes happen less often and move a shorter distance (evolving).
-    if(pool.length > 1 && Math.random() < evo){
-      const stepRange = Math.max(1, Math.round(evo * (pool.length-1)));
-      const delta = Math.floor(Math.random()*(2*stepRange+1)) - stepRange;
-      pitchPoolIndex = Math.max(0, Math.min(pool.length-1, pitchPoolIndex + delta));
-    }
-    return pool[pitchPoolIndex];
+  // The pool of melody notes (semitones above the key root) for the current key, mode,
+  // range and "Number of notes" setting.
+  function getNotePool(){
+    const rangeOct = parseInt(document.getElementById('pitchRange').value,10);
+    const sc = currentScale();
+    const stepChoices = [];
+    for(let o=0;o<=rangeOct;o++){ sc.intervals.forEach(s => stepChoices.push(o*12+s)); }
+    stepChoices.sort((a,b)=>a-b);
+    return buildNotePool(stepChoices);
   }
 
-  function applyPitchTarget(){
+  // ----- Motif memory -----
+  function pickRandomBeats(){
+    const pool = enabledNoteBeats();
+    return pool[Math.floor(Math.random()*pool.length)];
+  }
+
+  // Rest is weighted as one more peer option alongside the checked note lengths.
+  function rollRest(){
+    if(!restIsEnabled()) return false;
+    return Math.random() < 1/(enabledNoteBeats().length + 1);
+  }
+
+  // New slots wander from the previous one in small steps, bouncing off the ends of the pool
+  // (rather than sticking to them), so a fresh motif has some shape to it.
+  function newSlot(prev, poolLen){
+    let pi;
+    if(prev){
+      const step = Math.random() < 0.7 ? 1 : 2;
+      pi = prev.pi + (Math.random() < 0.5 ? -step : step);
+      if(pi < 0) pi = -pi;
+      if(pi > poolLen-1) pi = 2*(poolLen-1) - pi;
+      pi = clamp(pi, 0, poolLen-1);
+    } else {
+      pi = Math.floor(Math.random()*poolLen);
+    }
+    return { pi, beats: pickRandomBeats(), rest: rollRest() };
+  }
+
+  function buildMotif(){
+    const len = parseInt(document.getElementById('motifLength').value,10);
+    const poolLen = getNotePool().length;
+    motif = [];
+    for(let i=0;i<len;i++){
+      const slot = newSlot(motif[i-1], poolLen);
+      if(i === 0) slot.rest = false; // the phrase always opens on a note
+      motif.push(slot);
+    }
+    motifIndex = 0;
+    motifPass = 0;
+  }
+
+  function resizeMotif(){
+    const len = parseInt(document.getElementById('motifLength').value,10);
+    const poolLen = getNotePool().length;
+    while(motif.length < len) motif.push(newSlot(motif[motif.length-1], poolLen));
+    if(motif.length > len) motif.length = len;
+    if(motifIndex >= motif.length) motifIndex = 0;
+  }
+
+  // Pitch evolution: 0 = slot never changes, 1 = slot jumps anywhere in the pool,
+  // in between = changes are occasional and travel a shorter distance.
+  function mutatePitch(slot, poolLen){
+    const evo = parseFloat(document.getElementById('pitchEvolution').value)/100;
+    if(poolLen > 1 && Math.random() < evo){
+      const range = Math.max(1, Math.round(evo * (poolLen-1)));
+      let delta = Math.floor(Math.random()*(2*range+1)) - range;
+      if(delta === 0) delta = Math.random() < 0.5 ? -1 : 1;
+      slot.pi = clamp(slot.pi + delta, 0, poolLen-1);
+    }
+  }
+
+  // Rhythm evolution: how often a slot's note length (and rest-or-note) is re-rolled.
+  function mutateRhythm(slot){
+    const evo = parseFloat(document.getElementById('rhythmEvolution').value)/100;
+    if(Math.random() < evo){
+      slot.beats = pickRandomBeats();
+      slot.rest = rollRest();
+    }
+  }
+
+  // Keeps a slot valid if the pool shrank or a note length was unchecked since it was written.
+  function sanitizeSlot(slot, poolLen){
+    slot.pi = clamp(slot.pi, 0, poolLen-1);
+    if(!enabledNoteBeats().some(b => Math.abs(b - slot.beats) < 1e-6)) slot.beats = pickRandomBeats();
+  }
+
+  function applyPitchTarget(semis){
     if(!running) return;
     const now = ctx.currentTime;
     const glideSec = parseFloat(document.getElementById('pitchGlide').value)/1000;
-    const rangeOct = parseInt(document.getElementById('pitchRange').value,10);
-    const root = C3 * Math.pow(2, parseInt(document.getElementById('keySelect').value,10)/12);
-    const intervals = MODES[document.getElementById('modeSelect').value];
-    const stepChoices = [];
-    for(let o=0;o<=rangeOct;o++){ intervals.forEach(s => stepChoices.push(o*12+s)); }
-    stepChoices.sort((a,b)=>a-b);
-    const semis = pickPitchSemis(stepChoices);
-    const target = root * Math.pow(2, semis/12);
+    const sc = currentScale();
+    currentMelodySemis = semis;
+    const target = sc.root * Math.pow(2, semis/12);
     voices.forEach(v => {
-      const voiceTarget = target * Math.pow(2, (v.harmonicSemis||0)/12);
+      const voiceTarget = sc.root * Math.pow(2, voiceSemisFor(semis, v.ideal||0, sc)/12);
       if(!v.freqState) v.freqState = freshState(voiceTarget);
       glideParam(v.osc.frequency, voiceTarget, glideSec, v.freqState, now);
     });
@@ -617,11 +802,31 @@
     return vowelSequence[vowelStepIndex];
   }
 
-  function applyVowelTarget(){
+  const OPEN_VOWEL_POSITIONS = VOWELS
+    .map((v,i) => ({ name: v.name, pos: i/(VOWELS.length-1) }))
+    .filter(v => v.name === 'a' || v.name === 'o')
+    .map(v => v.pos);
+
+  // Long notes lean toward the open vowels (a, o), the way a held sung syllable opens up.
+  // Short notes are left alone, so quick syllables keep whatever the sequence gave them.
+  function openVowelBias(value, beats){
+    const strength = parseFloat(document.getElementById('vowelOpen').value)/100;
+    const longness = clamp((beats - 0.5) / 1.5, 0, 1); // 0 at an 8th, 1 at a half note or longer
+    let nearest = OPEN_VOWEL_POSITIONS[0];
+    OPEN_VOWEL_POSITIONS.forEach(p => { if(Math.abs(p - value) < Math.abs(nearest - value)) nearest = p; });
+    return value + (nearest - value) * strength * longness;
+  }
+
+  function vowelSynced(){
+    return document.getElementById('vowelSync').value === 'notes';
+  }
+
+  function applyVowelTarget(info){
     if(!running) return;
     const now = ctx.currentTime;
     const glideSec = parseFloat(document.getElementById('vowelGlide').value)/1000;
-    const value = advanceVowelStep();
+    let value = advanceVowelStep();
+    if(info && info.beats) value = openVowelBias(value, info.beats);
     const target = vowelSoundAt(value);
     for(let f=0; f<3; f++){
       const freq = [target.f1,target.f2,target.f3][f];
@@ -650,10 +855,19 @@
     setTimeout(()=>el.classList.remove('lit'), 90);
   }
 
+  // The free clock only runs when vowels are not synced to note onsets.
   function restartVowelClock(){
     clearInterval(vowelTimer);
+    if(vowelSynced()) return;
     const vRate = parseFloat(document.getElementById('vowelRate').value);
-    vowelTimer = setInterval(applyVowelTarget, 1000/vRate);
+    vowelTimer = setInterval(() => applyVowelTarget(), 1000/vRate);
+  }
+
+  function updateVowelSyncUI(){
+    const synced = vowelSynced();
+    document.getElementById('vowelRateCtrl').hidden = synced;
+    document.getElementById('vowelEveryCtrl').hidden = !synced;
+    document.getElementById('vowelOpenCtrl').hidden = !synced;
   }
 
   function enabledNoteBeats(){
@@ -667,24 +881,32 @@
     return !!(box && box.checked);
   }
 
-  function pickNoteDuration(){
-    const bpm = parseFloat(document.getElementById('bpm').value);
-    const pool = enabledNoteBeats();
-    const beats = pool[Math.floor(Math.random()*pool.length)];
-    const durationSec = beats * (60/bpm);
-    // Rest is weighted as if it were one more peer option alongside the checked durations.
-    const isRest = restIsEnabled() && Math.random() < 1/(pool.length + 1);
-    return { durationSec, isRest };
-  }
-
+  // Plays the next slot of the motif. The first pass is stated as written; from the second pass
+  // on, each slot is mutated (pitch and rhythm independently) just before it plays.
   function scheduleNextNote(){
     if(!running) return;
-    const { durationSec, isRest } = pickNoteDuration();
-    if(isRest){
+    if(!motif.length) buildMotif();
+    if(motifIndex >= motif.length) motifIndex = 0;
+    const pool = getNotePool();
+    const slot = motif[motifIndex];
+    if(motifPass > 0){
+      mutatePitch(slot, pool.length);
+      mutateRhythm(slot);
+    }
+    sanitizeSlot(slot, pool.length);
+
+    const bpm = parseFloat(document.getElementById('bpm').value);
+    const durationSec = slot.beats * (60/bpm);
+    document.getElementById('motifReadout').textContent = (motifIndex+1)+'/'+motif.length+' · pass '+(motifPass+1);
+
+    if(slot.rest && restIsEnabled()){
       restOn();
     } else {
-      noteOn(durationSec);
+      noteOn(durationSec, slot.beats, pool[slot.pi]);
     }
+
+    motifIndex++;
+    if(motifIndex >= motif.length){ motifIndex = 0; motifPass++; }
     noteTimeoutId = setTimeout(scheduleNextNote, durationSec*1000);
   }
 
@@ -698,8 +920,29 @@
     document.getElementById('pitchReadout').textContent = 'rest';
   }
 
-  function noteOn(durationSec){
-    applyPitchTarget();
+  function scheduleFilterEnvelope(gateOnSec){
+    if(!vocalFilter) return;
+    const now = ctx.currentTime;
+    const base = parseFloat(document.getElementById('filterCutoff').value);
+    const amountOct = parseFloat(document.getElementById('filterEnvAmount').value);
+    const peak = base * Math.pow(2, amountOct);
+    const sustainFrac = parseFloat(document.getElementById('filterSustain').value)/100;
+    const sustainLevel = base + (peak - base) * sustainFrac;
+    let attackSec = parseFloat(document.getElementById('filterAttack').value)/1000;
+    let decaySec = parseFloat(document.getElementById('filterDecay').value)/1000;
+    const releaseSec = parseFloat(document.getElementById('filterRelease').value)/1000;
+    if(attackSec > gateOnSec) attackSec = gateOnSec;
+    if(attackSec + decaySec > gateOnSec) decaySec = Math.max(0, gateOnSec - attackSec);
+    vocalFilter.frequency.cancelScheduledValues(now);
+    vocalFilter.frequency.setValueAtTime(base, now);
+    vocalFilter.frequency.linearRampToValueAtTime(peak, now + attackSec);
+    vocalFilter.frequency.linearRampToValueAtTime(sustainLevel, now + attackSec + decaySec);
+    vocalFilter.frequency.setValueAtTime(sustainLevel, now + gateOnSec);
+    vocalFilter.frequency.linearRampToValueAtTime(base, now + gateOnSec + releaseSec);
+  }
+
+  function noteOn(durationSec, beats, semis){
+    applyPitchTarget(semis);
     if(!envGain) return;
     const now = ctx.currentTime;
     const attackSec = parseFloat(document.getElementById('attack').value)/1000;
@@ -712,6 +955,14 @@
     envGain.gain.linearRampToValueAtTime(1, now + attackSec);
     envGain.gain.setValueAtTime(1, now + gateOnSec);
     envGain.gain.linearRampToValueAtTime(0.0001, now + gateOnSec + releaseSec);
+    scheduleFilterEnvelope(gateOnSec);
+
+    // Syllable sync: the vowel sequence steps on note onsets (rests don't count as syllables).
+    if(vowelSynced()){
+      const every = parseInt(document.getElementById('vowelEvery').value,10);
+      if(notesSinceVowel % every === 0) applyVowelTarget({ beats });
+      notesSinceVowel++;
+    }
   }
 
   function setupLFO(){
@@ -833,9 +1084,14 @@
     if(ctx.state === 'suspended') ctx.resume();
     master = ctx.createGain();
     master.gain.value = parseFloat(document.getElementById('volume').value)/100;
+    vocalFilter = ctx.createBiquadFilter();
+    vocalFilter.type = document.getElementById('filterType').value;
+    vocalFilter.frequency.value = parseFloat(document.getElementById('filterCutoff').value);
+    vocalFilter.Q.value = parseFloat(document.getElementById('filterRes').value);
     envGain = ctx.createGain();
     envGain.gain.value = 0.0001;
-    master.connect(envGain);
+    master.connect(vocalFilter);
+    vocalFilter.connect(envGain);
     reverbConvolver = ctx.createConvolver();
     reverbConvolver.buffer = generateImpulseResponse(document.getElementById('reverbType').value, ctx);
     reverbDry = ctx.createGain();
@@ -849,9 +1105,13 @@
     running = true;
     buildVoices();
     buildVowelSequence();
+    notesSinceVowel = 0;
+    if(!motif.length) buildMotif();
+    motifIndex = 0;
+    motifPass = 0;
     setupLFO();
     restartVowelClock();
-    applyVowelTarget();
+    if(!vowelSynced()) applyVowelTarget();
     scheduleNextNote();
   }
 
@@ -864,10 +1124,12 @@
     voices = [];
     lfoOsc = null; lfoGain = null;
     if(master){ master.disconnect(); }
+    if(vocalFilter){ vocalFilter.disconnect(); }
     if(envGain){ envGain.disconnect(); }
     if(reverbConvolver){ reverbConvolver.disconnect(); }
     if(reverbDry){ reverbDry.disconnect(); }
     if(reverbWet){ reverbWet.disconnect(); }
+    vocalFilter = null;
     envGain = null;
     reverbConvolver = null; reverbDry = null; reverbWet = null;
   }
@@ -935,6 +1197,25 @@
   document.getElementById('pitchEvolution').addEventListener('input', e=>{
     document.getElementById('pitchEvolutionVal').textContent = e.target.value+'%';
   });
+  document.getElementById('motifLength').addEventListener('input', e=>{
+    document.getElementById('motifLengthVal').textContent = e.target.value+' notes';
+    if(motif.length) resizeMotif();
+  });
+  document.getElementById('newMotifBtn').addEventListener('click', buildMotif);
+  document.getElementById('rhythmEvolution').addEventListener('input', e=>{
+    document.getElementById('rhythmEvolutionVal').textContent = e.target.value+'%';
+  });
+  document.getElementById('vowelSync').addEventListener('change', ()=>{
+    updateVowelSyncUI();
+    if(running) restartVowelClock();
+  });
+  document.getElementById('vowelEvery').addEventListener('input', e=>{
+    const n = parseInt(e.target.value,10);
+    document.getElementById('vowelEveryVal').textContent = n+(n===1?' note':' notes');
+  });
+  document.getElementById('vowelOpen').addEventListener('input', e=>{
+    document.getElementById('vowelOpenVal').textContent = e.target.value+'%';
+  });
   document.getElementById('vowelGlide').addEventListener('input', e=>{
     document.getElementById('vowelGlideVal').textContent = e.target.value+' ms';
   });
@@ -954,6 +1235,34 @@
     updateLFORouting();
   });
   document.getElementById('lfoDest').addEventListener('change', updateLFORouting);
+
+  document.getElementById('filterType').addEventListener('change', e=>{
+    if(vocalFilter) vocalFilter.type = e.target.value;
+  });
+  document.getElementById('filterCutoff').addEventListener('input', e=>{
+    document.getElementById('filterCutoffVal').textContent = e.target.value+' Hz';
+  });
+  document.getElementById('filterRes').addEventListener('input', e=>{
+    const v = parseFloat(e.target.value);
+    document.getElementById('filterResVal').textContent = v.toFixed(1);
+    if(vocalFilter) vocalFilter.Q.value = v;
+  });
+  document.getElementById('filterEnvAmount').addEventListener('input', e=>{
+    const v = parseFloat(e.target.value);
+    document.getElementById('filterEnvAmountVal').textContent = (v>=0?'+':'')+v.toFixed(1)+' oct';
+  });
+  document.getElementById('filterAttack').addEventListener('input', e=>{
+    document.getElementById('filterAttackVal').textContent = e.target.value+' ms';
+  });
+  document.getElementById('filterDecay').addEventListener('input', e=>{
+    document.getElementById('filterDecayVal').textContent = e.target.value+' ms';
+  });
+  document.getElementById('filterSustain').addEventListener('input', e=>{
+    document.getElementById('filterSustainVal').textContent = e.target.value+'%';
+  });
+  document.getElementById('filterRelease').addEventListener('input', e=>{
+    document.getElementById('filterReleaseVal').textContent = e.target.value+' ms';
+  });
 
   document.getElementById('reverbToggle').addEventListener('click', function(){
     reverbEnabled = !reverbEnabled;
@@ -975,6 +1284,7 @@
     updateReverbMix();
   });
 
+  updateVowelSyncUI();
   drawVowelSpace();
 })();
 </script>
