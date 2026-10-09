@@ -12,6 +12,10 @@ A bank of detuned sawtooth oscillators (the "choir voices") each pass through th
 - **Vowels** are a second sequence of values along an a → e → i → o → u continuum. By default it steps on note onsets, so each note is a syllable, and long notes lean toward the open vowels (a, o).
 - **Harmony** voices sit at intervals above the melody, snapped to the nearest note of the key and mode, so the choir always stays in key.
 
+## Discobot guest
+
+This app can be a unit in the rack of [Discobot](https://iw978599.github.io/discobot/), a browser sequencer and drum machine. In Discobot choose **Project → Add Guest Instrument** and paste `https://aaronvandorn.github.io/Choir/`. Discobot then starts and stops the app on its beat, sets the tempo, takes its sound into its mixer, and saves its settings with the project. Opened on its own, the app is unchanged. See [JAM-LINK.md](JAM-LINK.md#discobot-guest) for details.
+
 ## Controls
 
 **Voice display**
