@@ -42,6 +42,7 @@ Live readout of the current pitch, vowel, and motif position (step and pass numb
 **Rhythm engine**
 Each slot in the motif gets a note length from whichever values are checked (whole down to 16th, plus dotted and triplet 8ths).
 - *Tempo* — BPM the note values are measured against
+- *Feel: Half time* — the choir phrases at half the tempo (a quarter note lasts two beats), so vocals flow naturally over a faster beat. Only Choir changes: the shared tempo and linked apps stay where they are, and notes stay on the same beat grid. Saved with patterns
 - *Gate length* — how much of each note's duration actually sounds before the next one
 - *Attack* / *Release* — amplitude envelope per note
 - *Rhythm evolution* — how often a slot's note length (and whether it is a rest) is re-rolled on later passes. Independent of pitch evolution, so you can hold the melody still and vary the rhythm, or the reverse

@@ -144,6 +144,8 @@
   .pill input{ position:absolute; opacity:0; inset:0; margin:0; cursor:pointer; }
   .pill:has(input:checked){ color:var(--accent-on-ink); background:var(--c); border-color:var(--c); }
   .pill:has(input:focus-visible){ box-shadow:0 0 0 2px var(--c); }
+  /* A single toggle pill standing in a field, sized to sit beside a knob. */
+  .fld label.pill.solo{ display:flex; justify-content:center; height:28px; box-sizing:border-box; margin:0; font-size:12px; }
 
   /* ---- buttons, bars, chips ---- */
   button{
@@ -286,6 +288,9 @@
 <div class="panel" data-set="rhythm"><h2>Rhythm engine</h2><p class="desc">Each slot in the motif gets a note length (or a rest) from the values you enable below. Rhythm evolution sets how often a slot is re-rolled on later passes.</p><div class="grid"><div class="sec">Clock</div><div class="fld">
         <label>Tempo <span class="val" id="bpmVal">96 BPM</span></label>
         <input type="range" id="bpm" min="40" max="240" step="1" value="96">
+      </div><div class="fld">
+        <label>Feel</label>
+        <label class="pill solo" title="Choir phrases at half the tempo, so each note lasts twice as long. The shared tempo and the other linked apps are unchanged."><input type="checkbox" id="halfTime"> <span id="halfTimeText">Half time</span></label>
       </div><div class="fld">
         <label>Gate length <span class="val" id="gateLenVal">70%</span></label>
         <input type="range" id="gateLen" min="10" max="100" step="1" value="70">
@@ -2112,7 +2117,10 @@
     sanitizeSlot(slot, pool.length);
     sanitizeExpression(slot);
 
-    const durationSec = slot.beats * (60/jam.bpm());
+    // Half time: each Choir beat spans two beats of the shared clock, so the phrase moves at half
+    // the tempo while staying locked to the same grid as the other apps.
+    const span = slot.beats * tempoMult();
+    const durationSec = span * (60/jam.bpm());
     document.getElementById('motifReadout').textContent = (idx+1)+'/'+len+' · pass '+(motifPass+1);
     if(idx === 0) logPhraseStart();
     jam.trace(when, idx);
@@ -2123,13 +2131,18 @@
     } else {
       const expr = buildExpression(slot, idx, len, pool.length);
       document.getElementById('exprReadout').textContent = expr.label;
-      noteOn(durationSec, slot.beats, pool[slot.pi], expr);
+      noteOn(durationSec, span, pool[slot.pi], expr); // longer real notes get fuller vibrato
       logNote(durationSec, slot.beats, pool[slot.pi], expr);
     }
 
     motifIndex++;
     if(motifIndex >= motif.length){ motifIndex = 0; motifPass++; }
-    return slot.beats;
+    return span;
+  }
+
+  function tempoMult(){
+    const box = document.getElementById('halfTime');
+    return box && box.checked ? 2 : 1;
   }
 
   // Look-ahead scheduler: every 25 ms, schedule whatever slots begin in the next ~120 ms. Slot
@@ -2501,7 +2514,15 @@
   document.getElementById('bpm').addEventListener('input', e=>{
     document.getElementById('bpmVal').textContent = e.target.value+' BPM';
     jam.userTempo(parseFloat(e.target.value)); // ignored while applying a tempo that came from the jam
+    updateHalfTimeText();
   });
+  // The pill shows the tempo the phrase is felt at, e.g. "Half · 60 BPM" over a 120 BPM beat.
+  function updateHalfTimeText(){
+    const on = document.getElementById('halfTime').checked;
+    const bpm = parseFloat(document.getElementById('bpm').value);
+    document.getElementById('halfTimeText').textContent = on ? 'Half · ' + Math.round(bpm/2) + ' BPM' : 'Half time';
+  }
+  document.getElementById('halfTime').addEventListener('change', updateHalfTimeText);
   function currentKeyMode(){ return { root: parseInt(document.getElementById('keySelect').value,10), mode: document.getElementById('modeSelect').value }; }
   document.getElementById('keySelect').addEventListener('change', ()=>{ const k = currentKeyMode(); jam.userKey(k.root, k.mode); });
   document.getElementById('modeSelect').addEventListener('change', ()=>{ const k = currentKeyMode(); jam.userKey(k.root, k.mode); });
@@ -3093,6 +3114,7 @@
       const el = document.getElementById('bpm');
       el.value = Math.max(parseFloat(el.min), Math.min(parseFloat(el.max), Math.round(v)));
       document.getElementById('bpmVal').textContent = el.value+' BPM';
+      updateHalfTimeText();
     },
     start:remote=>{ if(!running){ start(!!remote); setPowerUI(true); } },
     stop:()=>{ if(running){ stop(); setPowerUI(false); } },
