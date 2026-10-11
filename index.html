@@ -70,6 +70,45 @@
   .panel[data-set=vowel]{--c:#2fa093}
   .panel[data-set=lfo]{--c:#d1623a}
   .panel[data-set=reverb]{--c:#5f7a99}
+  .panel[data-set=prog]{--c:#2f8fb5}
+
+  /* ---- Programming (arrangement) ---- */
+  .arr-timeline{ display:flex; gap:3px; height:34px; margin-bottom:10px; }
+  .arr-block{
+    position:relative; flex:1 1 0; min-width:16px; border-radius:5px; overflow:hidden;
+    background:color-mix(in srgb, var(--lc) 22%, var(--panel-raised)); border:1px solid color-mix(in srgb, var(--lc) 55%, var(--line));
+    display:flex; align-items:center; justify-content:center;
+    font:700 12px/1 "Courier New",monospace; color:var(--ink);
+  }
+  .arr-block .fill{ position:absolute; inset:0 auto 0 0; width:0; background:color-mix(in srgb, var(--lc) 45%, transparent); }
+  .arr-block span{ position:relative; }
+  .arr-block.now{ border-color:var(--lc); box-shadow:0 0 0 1px var(--lc); }
+  .arr-list{ display:flex; flex-direction:column; gap:6px; }
+  .arr-row{
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+    background:var(--panel-raised); border:1px solid var(--line); border-left:4px solid var(--lc);
+    border-radius:6px; padding:5px 6px;
+  }
+  .arr-row.now{ border-color:var(--lc); }
+  .arr-row .n{ font:600 11px/1 "Courier New",monospace; color:var(--ink-dim); width:20px; text-align:right; }
+  .arr-row select{ width:auto; min-width:58px; }
+  .arr-row .bars{ display:flex; align-items:center; gap:2px; }
+  .arr-row .bars input{
+    width:42px; height:28px; text-align:center; box-sizing:border-box;
+    background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:4px; font:600 13px "Courier New",monospace;
+  }
+  .arr-row .bars span{ font-size:11px; color:var(--ink-dim); margin-left:4px; }
+  .arr-row button{ padding:3px 8px; height:28px; min-width:28px; font-size:12px; }
+  .arr-row .sp{ flex:1; }
+  .arr-row .tag{ font-size:11px; color:var(--ink-dim); }
+  @media (max-width:560px){
+    /* One line per section on a phone: the "new phrase / repeat" tag goes (the timeline shows it). */
+    .arr-row{ flex-wrap:nowrap; gap:4px; }
+    .arr-row .tag{ display:none; }
+    .arr-row select{ min-width:50px; }
+    .arr-row .bars input{ width:36px; }
+    .arr-row button{ min-width:26px; padding:3px 6px; }
+  }
   .panel h2{
     display:flex; align-items:center; gap:8px;
     font-size:11px; text-transform:uppercase; letter-spacing:1.2px; font-weight:700;
@@ -442,6 +481,51 @@
         <label>Mix <span class="val" id="reverbMixVal">25%</span></label>
         <input type="range" id="reverbMix" min="0" max="100" step="1" value="25">
       </div></div></div>
+  <div class="panel wide" data-set="prog">
+    <h2>Programming</h2>
+    <p class="desc">Lay out a song as sections. Each letter (A, B, C…) gets its own phrase and its own vowel sequence the first time it plays. When that letter comes back, the same phrase returns with Repeat variation applied, always measured from the original so the section stays recognisable. Sections start on bar lines: a section shorter than its phrase cuts it off, a longer one repeats it (Pitch and Rhythm evolution still apply within a section). Bars follow the phrase style's meter, or 4/4 in Free.</p>
+    <div class="grid">
+      <div class="fld">
+        <label>Arrangement</label>
+        <label class="pill solo"><input type="checkbox" id="arrOn"> <span id="arrOnText">Off</span></label>
+      </div><div class="fld">
+        <label>Repeat variation <span class="val" id="arrVariationVal">20%</span></label>
+        <input type="range" id="arrVariation" min="0" max="100" step="1" value="20">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink-dim);margin-top:4px;">
+          <span>exact</span><span>loose</span><span>new</span>
+        </div>
+      </div><div class="fld">
+        <label>At the end</label>
+        <select id="arrEnd">
+          <option value="loop" selected>Loop</option>
+          <option value="stop">Stop singing</option>
+        </select>
+      </div><div class="fld w2">
+        <label>Form preset</label>
+        <select id="arrPreset">
+          <option value="">Choose a form…</option>
+          <option value="AABA">AABA (32-bar song form)</option>
+          <option value="verse">Verse / chorus / bridge</option>
+          <option value="call">Call and response</option>
+          <option value="blues">Blues (AAB, 12 bars)</option>
+          <option value="rondo">Rondo (ABACA)</option>
+          <option value="through">Through-composed (ABCD)</option>
+        </select>
+      </div><div class="fld">
+        <label>Phrases</label>
+        <button id="arrNewPhrases" title="Forget every letter's phrase so each is written fresh the next time it plays">New phrases</button>
+      </div>
+    </div>
+    <div class="body">
+      <div class="arr-timeline" id="arrTimeline" aria-label="Arrangement timeline"></div>
+      <div class="arr-list" id="arrList"></div>
+      <div class="savebar" style="margin-top:8px;">
+        <button id="arrAdd" class="primary">+ Add section</button>
+        <span class="hint" id="arrInfo" style="margin:0;"></span>
+      </div>
+    </div>
+  </div>
+
   <div class="panel wide">
     <h2>Patterns</h2>
     <p class="desc">Save everything you hear: every control, plus the exact phrase (notes, lengths, rests, inflections) and the vowel sequence. Click a saved pattern to bring it back; it starts from a clean statement of the phrase.</p><div class="body"><div class="savebar">
@@ -2206,8 +2290,8 @@
 
   // Rhythm evolution for a styled phrase: on each pass, each line may swap to another rhythm of
   // the same role. The other line keeps its notes, so the phrase changes a line at a time.
-  function evolveStyledMotif(st){
-    const evo = parseFloat(document.getElementById('rhythmEvolution').value)/100;
+  function evolveStyledMotif(st, amount){
+    const evo = amount !== undefined ? amount : parseFloat(document.getElementById('rhythmEvolution').value)/100;
     const pool = getNotePool();
     let changed = false;
     const lines = [0,1].map(l => motif.filter(s => s.line === l));
@@ -2251,6 +2335,251 @@
     const m = tempoMult(), cb = clockBeat/m;
     return (swingWarp(cb, st) - cb)*m + st.laidMs*jam.bpm()/60000;
   }
+
+  // ----- Programming: song arrangement -----
+  // A list of sections { letter, bars } played in order. Each letter keeps a base phrase (the
+  // motif and its vowel sequence) written the first time it plays. A later section with the same
+  // letter starts from a copy of that base with Repeat variation applied, so a chorus comes back
+  // as the chorus. Positions are counted in Choir's own beats from Start, and sections begin on
+  // bar lines of the current meter (4/4 in Free).
+  const ARR_LETTERS = ['A','B','C','D','E','F'];
+  const ARR_COLORS = { A:'#3f7fc1', B:'#3f9d5f', C:'#c24f8f', D:'#d98c1f', E:'#8a63c9', F:'#2fa093' };
+  const ARR_PRESETS = {
+    AABA:    [['A',8],['A',8],['B',8],['A',8]],
+    verse:   [['A',8],['B',8],['A',8],['B',8],['C',8],['B',8]],
+    call:    [['A',2],['B',2],['A',2],['B',2]],
+    blues:   [['A',4],['A',4],['B',4]],
+    rondo:   [['A',4],['B',4],['A',4],['C',4],['A',4]],
+    through: [['A',4],['B',4],['C',4],['D',4]]
+  };
+  const ARR_STORE_KEY = 'choirArrangement';
+  const arr = {
+    sections: [{letter:'A',bars:4},{letter:'A',bars:4},{letter:'B',bars:4},{letter:'A',bars:4}],
+    bases: {},        // letter -> { motif, vowels, key } (key = style + meter it was written in)
+    idx: -1,          // section now playing (-1 = none yet)
+    start: 0, end: 0, // its span, in Choir beats from Start
+    done: false,      // reached the end with "Stop singing"
+    heard: {},        // letters already sung since Start (their first section this run is exact)
+    pass: 0           // times round the whole arrangement
+  };
+
+  function arrangementOn(){ return document.getElementById('arrOn').checked; }
+  function arrBarBeats(){ return phraseStyle() ? currentMeter().barBeats : 4; }
+  function arrStyleKey(){ return document.getElementById('phraseStyle').value + '@' + currentMeter().name; }
+  function deepCopy(x){ return JSON.parse(JSON.stringify(x)); }
+
+  function persistArrangement(){
+    try{ localStorage.setItem(ARR_STORE_KEY, JSON.stringify({ sections: arr.sections })); }catch(e){}
+  }
+  function loadArrangement(){
+    try{
+      const raw = JSON.parse(localStorage.getItem(ARR_STORE_KEY));
+      if(raw && Array.isArray(raw.sections) && raw.sections.length) arr.sections = sanitizeSections(raw.sections);
+    }catch(e){}
+  }
+  function sanitizeSections(list){
+    return list.filter(s => s && ARR_LETTERS.includes(s.letter))
+               .map(s => ({ letter: s.letter, bars: clamp(Math.round(+s.bars || 4), 1, 64) }))
+               .slice(0, 32);
+  }
+
+  function resetArrangementPlayhead(){
+    arr.idx = -1; arr.start = 0; arr.end = 0; arr.done = false; arr.pass = 0; arr.heard = {};
+  }
+
+  // The style, key, mode or contour changed (or New motif was pressed): every letter's phrase
+  // is out of date. The phrase just written becomes the current letter's base.
+  function arrangementPhrasesChanged(){
+    arr.bases = {};
+    const sec = arr.sections[arr.idx];
+    if(arrangementOn() && sec && motif.length){
+      arr.bases[sec.letter] = { motif: deepCopy(motif), vowels: vowelSequence.slice(), key: arrStyleKey() };
+    }
+    renderArrangement();
+  }
+
+  // Repeat variation: a copy of the base phrase, changed by `amount` (0 = exact, 1 = mostly new).
+  // Pitches move along the contour, a styled line may swap to another rhythm of its kind (a free
+  // slot may re-roll its length), inflections re-roll, and vowels drift. Line endings re-land.
+  function varyPhrase(base, amount){
+    motif = deepCopy(base.motif);
+    vowelSequence = base.vowels.slice();
+    if(amount <= 0) return;
+    const st = phraseStyle();
+    const pool = getNotePool();
+    if(st) evolveStyledMotif(st, amount * 0.5);
+    motif.forEach((slot, i) => {
+      mutatePitch(slot, i, motif.length, pool.length, amount);
+      if(!st && Math.random() < amount * 0.5){ slot.beats = pickRandomBeats(); slot.rest = i > 0 && rollRest(); }
+      if(Math.random() < amount) slot.expr = st ? styledExpression(motif, i, st) : rollExpression();
+    });
+    if(st) motif.forEach((slot, i) => shapeStyledPitch(motif, i, pool, st));
+    vowelSequence = vowelSequence.map(v => Math.random() < amount ? clamp(v + (Math.random()*2-1)*amount*0.5, 0, 1) : v);
+  }
+
+  function enterSection(i, cb){
+    const sec = arr.sections[i];
+    arr.idx = i; arr.start = cb; arr.end = cb + sec.bars * arrBarBeats();
+    const base = arr.bases[sec.letter];
+    if(!base || base.key !== arrStyleKey()){
+      generateMotif();
+      buildVowelSequence();
+      arr.bases[sec.letter] = { motif: deepCopy(motif), vowels: vowelSequence.slice(), key: arrStyleKey() };
+    } else {
+      // The first time a letter plays after Start it is stated exactly; every return is varied
+      // from the base.
+      varyPhrase(base, arr.heard[sec.letter] ? parseFloat(document.getElementById('arrVariation').value)/100 : 0);
+    }
+    arr.heard[sec.letter] = true;
+    motifIndex = 0; motifPass = 0;
+    vowelStepIndex = 0; notesSinceVowel = 0;
+    renderArrangement();
+  }
+
+  // Called before each slot. Returns { wait } (clock beats of silence, to reach a bar line or
+  // after the end) or { remaining } (Choir beats left in the current section).
+  function arrangementStep(m){
+    const cb = nextBeat / m;
+    if(arr.idx < 0 || cb >= arr.end - 1e-6){
+      const bar = arrBarBeats();
+      const intoBar = cb - Math.floor(cb/bar + 1e-6)*bar;
+      if(intoBar > 1e-6 && intoBar < bar - 1e-6) return { wait: (bar - intoBar) * m };
+      if(arr.done || !arr.sections.length) return { wait: bar * m };
+      let next = arr.idx + 1;
+      if(next >= arr.sections.length){
+        if(document.getElementById('arrEnd').value === 'stop'){
+          arr.done = true; arr.idx = -1; renderArrangement();
+          return { wait: bar * m };
+        }
+        next = 0; arr.pass++;
+      }
+      enterSection(next, cb);
+    }
+    return { remaining: arr.end - cb };
+  }
+
+  // ---- Programming panel UI ----
+  function arrTotalBars(){ return arr.sections.reduce((s, x) => s + x.bars, 0); }
+
+  function renderArrangement(){
+    const list = document.getElementById('arrList');
+    const tl = document.getElementById('arrTimeline');
+    if(!list) return;
+    const playing = running && arrangementOn();
+    list.textContent = ''; tl.textContent = '';
+    arr.sections.forEach((s, i) => {
+      const color = ARR_COLORS[s.letter];
+      const now = playing && i === arr.idx;
+      // timeline block, width proportional to bars
+      const blk = document.createElement('div');
+      blk.className = 'arr-block' + (now ? ' now' : '');
+      blk.style.setProperty('--lc', color); blk.style.flexGrow = s.bars;
+      blk.innerHTML = '<div class="fill"></div><span>' + s.letter + '</span>';
+      blk.title = 'Section ' + (i+1) + ': ' + s.letter + ', ' + s.bars + ' bar' + (s.bars === 1 ? '' : 's');
+      tl.appendChild(blk);
+      // editable row
+      const row = document.createElement('div');
+      row.className = 'arr-row' + (now ? ' now' : '');
+      row.style.setProperty('--lc', color);
+      const opts = ARR_LETTERS.map(L => '<option value="'+L+'"'+(L === s.letter ? ' selected' : '')+'>'+L+'</option>').join('');
+      const seen = arr.sections.slice(0, i).some(x => x.letter === s.letter);
+      row.innerHTML =
+        '<span class="n">' + (i+1) + '</span>' +
+        '<select class="arr-letter" aria-label="Section ' + (i+1) + ' letter">' + opts + '</select>' +
+        '<div class="bars"><button class="arr-dec" aria-label="Fewer bars">−</button>' +
+        '<input class="arr-bars" type="text" inputmode="numeric" value="' + s.bars + '" aria-label="Section ' + (i+1) + ' bars">' +
+        '<button class="arr-inc" aria-label="More bars">+</button><span>bars</span></div>' +
+        '<span class="tag">' + (seen ? 'repeat' : 'new phrase') + '</span>' +
+        '<span class="sp"></span>' +
+        '<button class="arr-up" aria-label="Move up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
+        '<button class="arr-down" aria-label="Move down"' + (i === arr.sections.length-1 ? ' disabled' : '') + '>↓</button>' +
+        '<button class="arr-del" aria-label="Delete section"' + (arr.sections.length === 1 ? ' disabled' : '') + '>✕</button>';
+      row.querySelector('.arr-letter').addEventListener('change', e => { s.letter = e.target.value; arrangementEdited(); });
+      const setBars = v => { s.bars = clamp(Math.round(v) || 1, 1, 64); arrangementEdited(); };
+      row.querySelector('.arr-dec').addEventListener('click', () => setBars(s.bars - 1));
+      row.querySelector('.arr-inc').addEventListener('click', () => setBars(s.bars + 1));
+      row.querySelector('.arr-bars').addEventListener('change', e => setBars(parseFloat(e.target.value)));
+      row.querySelector('.arr-up').addEventListener('click', () => moveSection(i, -1));
+      row.querySelector('.arr-down').addEventListener('click', () => moveSection(i, 1));
+      row.querySelector('.arr-del').addEventListener('click', () => { arr.sections.splice(i, 1); if(arr.idx >= i) arr.idx--; arrangementEdited(); });
+      list.appendChild(row);
+    });
+    updateArrangementInfo();
+    updateArrangementPlayhead();
+  }
+
+  // Total length line; cheap enough to refresh on tempo, meter and Half time changes.
+  function updateArrangementInfo(){
+    if(!document.getElementById('arrInfo')) return;
+    const bars = arrTotalBars();
+    const meter = phraseStyle() ? currentMeter() : METERS['4/4'];
+    const secs = bars * meter.barBeats * tempoMult() * 60 / parseFloat(document.getElementById('bpm').value);
+    const mmss = Math.floor(secs/60) + ':' + String(Math.round(secs % 60)).padStart(2, '0');
+    let info = bars + ' bars of ' + meter.name + ' · ' + mmss + ' at this tempo';
+    if(arr.done && running && arrangementOn()) info += ' · finished';
+    document.getElementById('arrInfo').textContent = info;
+    document.getElementById('arrOnText').textContent = arrangementOn() ? 'On' : 'Off';
+  }
+
+  // The filling bar on the current timeline block, and the readout.
+  function updateArrangementPlayhead(){
+    if(!running || !arrangementOn() || arr.idx < 0) return;
+    const blk = document.getElementById('arrTimeline').children[arr.idx];
+    if(!blk) return;
+    const cb = jam.beatAt ? jam.beatAt(ctx.currentTime) / tempoMult() : null;
+    if(cb === null || !isFinite(cb)) return;
+    const f = clamp((cb - arr.start) / Math.max(1e-6, arr.end - arr.start), 0, 1);
+    blk.querySelector('.fill').style.width = (f*100).toFixed(1) + '%';
+  }
+  setInterval(updateArrangementPlayhead, 100);
+
+  function moveSection(i, d){
+    const j = i + d;
+    if(j < 0 || j >= arr.sections.length) return;
+    const t = arr.sections[i]; arr.sections[i] = arr.sections[j]; arr.sections[j] = t;
+    if(arr.idx === i) arr.idx = j; else if(arr.idx === j) arr.idx = i;
+    arrangementEdited();
+  }
+
+  // Edits take effect from the next section; the one playing finishes as it started.
+  function arrangementEdited(){
+    if(arr.idx >= arr.sections.length) arr.idx = arr.sections.length - 1;
+    persistArrangement();
+    renderArrangement();
+  }
+
+  document.getElementById('arrAdd').addEventListener('click', () => {
+    const last = arr.sections[arr.sections.length-1];
+    const used = new Set(arr.sections.map(s => s.letter));
+    const fresh = ARR_LETTERS.find(L => !used.has(L)) || 'A';
+    if(arr.sections.length < 32) arr.sections.push({ letter: fresh, bars: last ? last.bars : 4 });
+    arrangementEdited();
+  });
+  document.getElementById('arrPreset').addEventListener('change', e => {
+    const p = ARR_PRESETS[e.target.value];
+    if(!p) return;
+    arr.sections = p.map(x => ({ letter: x[0], bars: x[1] }));
+    e.target.value = '';
+    arrangementEdited();
+  });
+  document.getElementById('arrNewPhrases').addEventListener('click', () => {
+    arr.bases = {};
+    // The section now playing keeps going; everything else is written fresh when it comes up.
+    const sec = arr.sections[arr.idx];
+    if(running && arrangementOn() && sec && motif.length) arr.bases[sec.letter] = { motif: deepCopy(motif), vowels: vowelSequence.slice(), key: arrStyleKey() };
+    renderArrangement();
+  });
+  document.getElementById('arrOn').addEventListener('change', () => {
+    // Turning it on mid-play starts the arrangement from its first section at the next bar.
+    resetArrangementPlayhead();
+    renderArrangement();
+  });
+  document.getElementById('arrVariation').addEventListener('input', e => {
+    document.getElementById('arrVariationVal').textContent = e.target.value + '%';
+  });
+  document.getElementById('arrEnd').addEventListener('change', () => { arr.done = false; renderArrangement(); });
+  loadArrangement();
+  renderArrangement();
 
   // ----- Melodic contour -----
   // A "step" is a move to the neighbouring note in the pool, a "leap" skips one or more.
@@ -2321,7 +2650,13 @@
     return { pi, beats: pickRandomBeats(), rest: rollRest(), expr: rollExpression() };
   }
 
+  // Writes a fresh phrase. buildMotif() is what the controls call: with an arrangement on it also
+  // forgets every letter's stored phrase, since the style, key or contour it was written in changed.
   function buildMotif(){
+    generateMotif();
+    arrangementPhrasesChanged();
+  }
+  function generateMotif(){
     const st = phraseStyle();
     if(st){
       motif = buildStyledMotif(st);
@@ -2353,8 +2688,8 @@
   // Pitch evolution: 0 = a slot never changes. Up to about 50% a changing slot nudges along
   // the contour (a step, or a leap if Leapiness allows). Above that the contour loosens, and at
   // 100% a changing slot jumps anywhere in the pool.
-  function mutatePitch(slot, idx, len, poolLen){
-    const evo = parseFloat(document.getElementById('pitchEvolution').value)/100;
+  function mutatePitch(slot, idx, len, poolLen, amount){
+    const evo = amount !== undefined ? amount : parseFloat(document.getElementById('pitchEvolution').value)/100;
     if(poolLen < 2 || Math.random() >= evo) return;
     const target = slotContour(motif, idx, poolLen);
     const free = target === null || Math.random() < clamp((evo - 0.5) * 2, 0, 1);
@@ -2601,9 +2936,16 @@
   // independently) just before it plays.
   function playNextSlot(when){
     const st = phraseStyle();
+    const m = tempoMult();
+    // Arrangement: move to the next section at its bar line, loading that letter's phrase.
+    let remaining = Infinity;
+    if(arrangementOn()){
+      const step = arrangementStep(m);
+      if(step.wait !== undefined){ restOn(); return step.wait; }
+      remaining = step.remaining;
+    }
     if(!motif.length || (st && !styledMotifValid(st))) buildMotif();
     if(motifIndex >= motif.length) motifIndex = 0;
-    const m = tempoMult();
 
     // A styled phrase starts on a bar line. If the phrase is due mid-bar (the style was just
     // picked, or Half time was toggled), wait silently for the next bar of Choir's own beats.
@@ -2636,11 +2978,15 @@
 
     // Half time: each Choir beat spans two beats of the shared clock, so the phrase moves at half
     // the tempo while staying locked to the same grid as the other apps.
-    const span = slot.beats * m;
+    // A note that would run past the end of its section is cut off at the section's bar line.
+    const span = Math.min(slot.beats, remaining) * m;
     // Swing and laid-back feel move note starts, so a note lasts until the next one's moved start.
     const feltSpan = span + feelShift(nextBeat + span) - feelShift(nextBeat);
     const durationSec = feltSpan * (60/jam.bpm());
-    document.getElementById('motifReadout').textContent = (idx+1)+'/'+len+' · pass '+(motifPass+1);
+    const sec = arrangementOn() ? arr.sections[arr.idx] : null;
+    document.getElementById('motifReadout').textContent = sec
+      ? sec.letter + ' · bar ' + (Math.floor((nextBeat/m - arr.start)/arrBarBeats() + 1e-6) + 1) + '/' + sec.bars + ' · ' + (idx+1) + '/' + len
+      : (idx+1)+'/'+len+' · pass '+(motifPass+1);
     if(idx === 0) logPhraseStart();
     jam.trace(when, idx);
 
@@ -2989,6 +3335,8 @@
     restartVowelClock();
     if(!vowelSynced()) applyVowelTarget();
     nextBeat = 0;
+    resetArrangementPlayhead();
+    renderArrangement();
     pumpTimer = setInterval(pump, 25);
     pump();
   }
@@ -2998,6 +3346,8 @@
     clearInterval(vowelTimer);
     clearInterval(pumpTimer);
     tNow = null;
+    resetArrangementPlayhead();
+    renderArrangement();
     jam.end();
     voices.forEach(v => { try{v.osc.stop();}catch(e){} });
     if(lfoOsc){ try{lfoOsc.stop();}catch(e){} }
@@ -3064,6 +3414,7 @@
     const on = document.getElementById('halfTime').checked;
     const bpm = parseFloat(document.getElementById('bpm').value);
     document.getElementById('halfTimeText').textContent = on ? 'Half · ' + Math.round(bpm/2) + ' BPM' : 'Half time';
+    updateArrangementInfo(); // the song's length in minutes depends on tempo and Half time
   }
   document.getElementById('halfTime').addEventListener('change', updateHalfTimeText);
   function currentKeyMode(){ return { root: parseInt(document.getElementById('keySelect').value,10), mode: document.getElementById('modeSelect').value }; }
@@ -3121,6 +3472,7 @@
     document.getElementById('phraseMeterCtrl').classList.toggle('styled-off', document.getElementById('phraseStyle').value === 'free');
     document.getElementById('noteValues').classList.toggle('styled-off', !!st);
     document.getElementById('motifLength').closest('.fld').classList.toggle('styled-knob', !!st);
+    updateArrangementInfo(); // bars follow the style's meter
   }
   document.getElementById('phraseMeter').addEventListener('change', ()=>{
     const sel = document.getElementById('phraseStyle');
@@ -3236,7 +3588,7 @@
 
   // ===== Pattern save / load =====
   const PATTERN_KEY = 'choirPatterns';
-  const PATTERN_SKIP = new Set(['patternName', 'snapMode']);
+  const PATTERN_SKIP = new Set(['patternName', 'snapMode', 'arrPreset']);
   let patterns = [];
 
   function persistPatterns(){ try{ localStorage.setItem(PATTERN_KEY, JSON.stringify(patterns)); }catch(e){} }
@@ -3256,7 +3608,9 @@
       controls,
       reverbOn: reverbEnabled,
       motif: JSON.parse(JSON.stringify(motif)),
-      vowelSequence: vowelSequence.slice()
+      vowelSequence: vowelSequence.slice(),
+      // The song layout and each letter's phrase, so a saved song comes back with its sections.
+      arrangement: { sections: deepCopy(arr.sections), bases: deepCopy(arr.bases) }
     };
   }
 
@@ -3282,6 +3636,13 @@
     // The controls above rebuild the motif and vowel sequence; put back the saved phrase itself.
     if(state.motif && state.motif.length){ motif = JSON.parse(JSON.stringify(state.motif)); }
     if(state.vowelSequence && state.vowelSequence.length){ vowelSequence = state.vowelSequence.slice(); }
+    if(state.arrangement && Array.isArray(state.arrangement.sections) && state.arrangement.sections.length){
+      arr.sections = sanitizeSections(state.arrangement.sections);
+      arr.bases = deepCopy(state.arrangement.bases || {});
+      resetArrangementPlayhead();
+      persistArrangement();
+      renderArrangement();
+    }
     motifIndex = 0; motifPass = 0;
     vowelStepIndex = 0; notesSinceVowel = 0;
   }

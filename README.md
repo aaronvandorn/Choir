@@ -76,8 +76,17 @@ A sine LFO with a bipolar depth control, routable to either pitch (vibrato) or t
 **Reverb**
 On/off toggle plus five procedurally generated impulse responses — Room, Hall, Plate, Spring, Cathedral — with a wet/dry mix control.
 
+**Programming**
+Lay out a song as a list of sections, each with a letter (A–F) and a number of bars. Each letter gets its own phrase and vowel sequence the first time it plays; when the letter comes back, the same phrase returns.
+- *Arrangement* — on to play the sections in order; off for the usual looping motif. Turned on mid-play, it starts from the first section at the next bar
+- *Repeat variation* — how much a returning section differs from its first statement, from exact to mostly new. Pitches move, a styled line may swap rhythm, inflections and vowels drift; line endings and cadences stay in place. Variation is always measured from the original, so sections don't drift away over a long song. The first time each letter plays after Start, it is stated exactly
+- *At the end* — loop the arrangement, or stop singing after the last section
+- *Form preset* — AABA, verse / chorus / bridge, call and response, blues (AAB), rondo, through-composed
+- *New phrases* — forget every letter's phrase so each is written fresh when it next plays. Changing the phrase style, meter, key, mode or contour, or pressing New motif, does the same
+- Sections start on bar lines of the phrase style's meter (4/4 in Free). A section shorter than its phrase cuts it off at the bar line; a longer one repeats it, with Pitch and Rhythm evolution applying within the section. The Motif readout shows the section, bar and slot. The layout is remembered in the browser, and saved patterns include it along with every letter's phrase
+
 **Patterns**
-Save the whole instrument as a named pattern: every control, the exact motif (pitches, lengths, rests, inflections), and the vowel sequence. Click a saved pattern to recall it; it begins from a clean statement of the phrase. Patterns are kept in the browser's local storage, so they persist on the same browser and device.
+Save the whole instrument as a named pattern: every control, the exact motif (pitches, lengths, rests, inflections), and the vowel sequence (plus the arrangement and its phrases). Click a saved pattern to recall it; it begins from a clean statement of the phrase. Patterns are kept in the browser's local storage, so they persist on the same browser and device.
 
 **Export**
 While Choir runs, the last 60 seconds of what actually played is kept in memory (nothing is uploaded), randomness and all. It stays available after you press Stop.
