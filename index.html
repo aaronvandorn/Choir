@@ -145,6 +145,10 @@
   .pill:has(input:checked){ color:var(--accent-on-ink); background:var(--c); border-color:var(--c); }
   .pill:has(input:focus-visible){ box-shadow:0 0 0 2px var(--c); }
   /* A single toggle pill standing in a field, sized to sit beside a knob. */
+  .style-hint{ font-size:11px; line-height:1.4; color:var(--ink-dim); margin-top:-2px; }
+  /* Controls a phrase style takes over: shown dimmed and inert while a style is on. */
+  .styled-off{ opacity:.4; pointer-events:none; }
+  .styled-knob > :not(.ex){ opacity:.4; pointer-events:none; } /* the knob, but not its New motif button */
   .fld label.pill.solo{ display:flex; justify-content:center; height:28px; box-sizing:border-box; margin:0; font-size:12px; }
 
   /* ---- buttons, bars, chips ---- */
@@ -263,6 +267,7 @@
       </div><div class="fld w2">
         <label>Contour</label>
         <select id="contourShape">
+          <option value="style">Genre's own shape, per line</option>
           <option value="arch" selected>Arch (rise and fall)</option>
           <option value="rising">Rising</option>
           <option value="falling">Falling</option>
@@ -285,7 +290,22 @@
           <span>static</span><span>evolving</span><span>random</span>
         </div>
       </div></div></div>
-<div class="panel" data-set="rhythm"><h2>Rhythm engine</h2><p class="desc">Each slot in the motif gets a note length (or a rest) from the values you enable below. Rhythm evolution sets how often a slot is re-rolled on later passes.</p><div class="grid"><div class="sec">Clock</div><div class="fld">
+<div class="panel" data-set="rhythm"><h2>Rhythm engine</h2><p class="desc">Each slot in the motif gets a note length (or a rest) from the values you enable below. Rhythm evolution sets how often a slot is re-rolled on later passes. Pick a phrase style to sing four-bar phrases shaped like a genre instead.</p><div class="grid"><div class="sec">Phrase style</div><div class="fld w2">
+        <label>Style</label>
+        <select id="phraseStyle">
+          <option value="free" selected>Free (note values below)</option>
+          <option value="pop">Pop</option>
+          <option value="country">Country</option>
+          <option value="rnb">R&amp;B / Soul</option>
+          <option value="rock">Rock</option>
+          <option value="hiphop">Hip-hop flow</option>
+          <option value="folk">Folk / Ballad</option>
+          <option value="gospel">Gospel</option>
+          <option value="blues">Blues</option>
+          <option value="reggae">Reggae</option>
+          <option value="chorale">Chorale / Hymn</option>
+        </select>
+      </div><div class="full style-hint" id="phraseStyleHint" hidden></div><div class="sec">Clock</div><div class="fld">
         <label>Tempo <span class="val" id="bpmVal">96 BPM</span></label>
         <input type="range" id="bpm" min="40" max="240" step="1" value="96">
       </div><div class="fld">
@@ -1768,6 +1788,342 @@
     return Math.random() < 1/(enabledNoteBeats().length + 1);
   }
 
+  // ----- Phrase styles (genre masks) -----
+  // A style replaces the free note-length roll with a 4-bar phrase built from two 2-bar lines:
+  // an "a" line that ends open (a question) and a "b" line that cadences home (the answer).
+  // Each line is a rhythm written in note values, so the phrase always fills exactly 16 beats
+  // and lands on the bar lines. See GENRE-MASKS.md for the analysis behind each style.
+  //
+  // Tokens:  w h q e s = whole, half, quarter, 8th, 16th   .  dotted   t  triplet (e.g. "et")
+  //          r  rest (e.g. "rq")
+  //          ~  melisma: same syllable as the note before (no new vowel, sung legato)
+  //          ^  line ending: lands on a chord tone (3rd or 5th, else root)
+  //          !  cadence: lands on the key root
+  //          =  repeats the pitch of the note before
+  //          >  accent
+  //          |  bar line (for reading only; each line must total 8 beats)
+  const PHRASE_STYLES = {
+    pop: {
+      name:'Pop', swing:0, swingUnit:0.5, laidMs:0, repeat:0.25, leap:1.0, span:null, contour:'arch', gate:0.9, runDir:-1,
+      scoop:false, vibrato:true, accent:true,
+      hint:'Syllabic 8ths with syncopation, a pickup into each line, repeated-note hooks, held line endings.',
+      a:[ 're e e= e q e e | h.^ re e',
+          'e e= e e= e e q^ | rh re e e e',
+          're s s e e e q.^ | rq e e q e re' ],
+      b:[ 'e e= e e q e e | q.! rq re re e',
+          're e e e e e q | h! rq re e',
+          'q e e e e e e | w!' ]
+    },
+    country: {
+      name:'Country', swing:0.25, swingUnit:0.5, laidMs:0, repeat:0.3, leap:0.7, span:null, contour:'falling', gate:0.9, runDir:-1,
+      scoop:true, vibrato:true, accent:false,
+      hint:'Conversational 8ths, story-dense lines, pickups, a long held note to end each line, scoops into phrases.',
+      a:[ 'q e e= e e q | h.^ re e',
+          'e e e= e e e q^ | h rq e e',
+          'e. s e e q e e= | q h^ re e' ],
+      b:[ 'q e e= e e e e | h! rq e e',
+          'e e e e q= e e | w!',
+          'e. s e e e e q | h.! re e' ]
+    },
+    rnb: {
+      name:'R&B / Soul', swing:0.35, swingUnit:0.25, laidMs:25, repeat:0.1, leap:1.3, span:null, contour:'arch', gate:0.95, runDir:-1,
+      scoop:true, vibrato:true, accent:false,
+      hint:'Fewer syllables, 16th syncopation sung behind the beat, melismatic runs into the line endings.',
+      a:[ 're s s e e q ~s ~s ~s ~s | ~h^ rh',
+          'rs s s s e. s q q | ~e ~e ~e ~e h^',
+          're e s s e q. e | ~et ~et ~et ~q^ rh' ],
+      b:[ 're s s e s s e q ~e | ~s ~s ~s ~s ~h.!',
+          'q. e ~s ~s ~s ~s e e | h! rq re s s' ]
+    },
+    rock: {
+      name:'Rock', swing:0, swingUnit:0.5, laidMs:0, repeat:0.4, leap:0.6, span:5, contour:'wave', gate:0.85, runDir:-1,
+      scoop:false, vibrato:false, accent:true,
+      hint:'Short on-the-beat lines of quarters and 8ths, accented downbeats, narrow range, lots of space.',
+      a:[ 'q> e e= q> q^ | rh. e e',
+          'e> e= e e= q> q^ | rw',
+          'q> q= e e q | h^ rh' ],
+      b:[ 'q> e e= q> e e | h! rh',
+          'e> e= e e= e> e= e e | h.! rq' ]
+    },
+    hiphop: {
+      name:'Hip-hop flow', swing:0.3, swingUnit:0.25, laidMs:15, repeat:0.6, leap:0.3, span:3, contour:'flat', gate:0.7, runDir:-1,
+      scoop:false, vibrato:false, accent:true,
+      hint:'Dense 16th-note syllables, syncopated accents, almost monotone pitch, the rhyme lands near beat 4.',
+      a:[ 're s s e s s e e> s s e | s s e s s e> rq q^',
+          's s s s e> e s s e e> e | s s s s e e> h^' ],
+      b:[ 'rs s s s e e> s s s s e e> | s s e e e> q! rq',
+          'e s s e> e s s e e> s s | e e> e e q.! re' ]
+    },
+    folk: {
+      name:'Folk / Ballad', swing:0, swingUnit:0.5, laidMs:0, repeat:0.1, leap:0.6, span:null, contour:'arch', gate:1.0, runDir:-1,
+      scoop:false, vibrato:true, accent:false,
+      hint:'One syllable per note in quarters and 8ths (common-meter 8-6 lines), stepwise, legato.',
+      a:[ 'rq q q e e | q q h^',
+          'q e e q q | h.^ rq' ],
+      b:[ 'q q e e q | e e q h!',
+          'rq q e e q | w!' ]
+    },
+    gospel: {
+      name:'Gospel', swing:0.55, swingUnit:0.5, laidMs:10, repeat:0.15, leap:1.4, span:null, contour:'arch', gate:0.95, runDir:-1,
+      scoop:true, vibrato:true, accent:false,
+      hint:'Call and response, held notes with vibrato, triplet runs, swung 8ths, big leaps up.',
+      a:[ 're e e e q ~et ~et ~et | h.^ rq',
+          'q e e h^ | rh e e e e' ],
+      b:[ 'e e q ~et ~et ~et ~et ~et ~et | w!',
+          'q. e q q | ~et ~et ~et h.!' ]
+    },
+    blues: {
+      name:'Blues', swing:1.0, swingUnit:0.5, laidMs:20, repeat:0.25, leap:0.8, span:null, contour:'falling', gate:0.9, runDir:-1,
+      scoop:true, vibrato:true, accent:false,
+      hint:'Shuffle (triplet) 8ths, a sung line then space for the answer, falling lines, scoops into notes.',
+      a:[ 'e e q e e q^ | h. rq',
+          're e e e q q^ | ~e ~e h rq' ],
+      b:[ 'e e e e q e e | h! rh',
+          're e q e e q | q.! rq re re e' ]
+    },
+    reggae: {
+      name:'Reggae', swing:0.1, swingUnit:0.5, laidMs:30, repeat:0.35, leap:0.6, span:null, contour:'wave', gate:0.8, runDir:-1,
+      scoop:false, vibrato:false, accent:true,
+      hint:'Lines start after the downbeat, syncopated 8ths sung well behind the beat, lots of space.',
+      a:[ 'rq e e e e q^ | rq e e q^ rq',
+          're e e e e e q^ | h rh' ],
+      b:[ 'rq e e e e e e | h.! rq',
+          're e q e e e e | q! rh.' ]
+    },
+    chorale: {
+      name:'Chorale / Hymn', swing:0, swingUnit:0.5, laidMs:0, repeat:0.15, leap:0.4, span:null, contour:'arch', gate:1.0, runDir:-1,
+      scoop:false, vibrato:true, accent:false,
+      hint:'All voices move together in quarters, a held cadence every two bars, stepwise lines.',
+      a:[ 'q q q q | q q h^',
+          'q q q e e | q q h^',
+          'h q q | q q h^' ],
+      b:[ 'q q q q | q q h!',
+          'q q q q | w!' ]
+    }
+  };
+  const PHRASE_BEATS = 16, LINE_BEATS = 8, BAR_BEATS_CHOIR = 4;
+  const TOKEN_BEATS = { w:4, h:2, q:1, e:0.5, s:0.25 };
+
+  function parseLine(str){
+    const out = [];
+    str.split(/\s+/).forEach(tok => {
+      if(!tok || tok === '|') return;
+      const m = /^(~?)(r?)([whqes])(\.?)(t?)([\^!=>]*)$/.exec(tok);
+      if(!m){ console.warn('Choir phrase style: bad token', tok); return; }
+      let beats = TOKEN_BEATS[m[3]];
+      if(m[4]) beats *= 1.5;
+      if(m[5]) beats *= 2/3;
+      const marks = m[6];
+      out.push({
+        beats, rest: !!m[2], slur: !!m[1] && !m[2],
+        mark: marks.includes('!') ? 'final' : marks.includes('^') ? 'end' : null,
+        rep: marks.includes('='), accent: marks.includes('>')
+      });
+    });
+    return out;
+  }
+
+  // Parse every line once at load, and check each one fills its two bars exactly.
+  Object.keys(PHRASE_STYLES).forEach(id => {
+    const st = PHRASE_STYLES[id];
+    ['a','b'].forEach(role => {
+      st[role] = st[role].map(src => {
+        const toks = parseLine(src);
+        const total = toks.reduce((s,t)=>s+t.beats, 0);
+        if(Math.abs(total - LINE_BEATS) > 1e-6) console.warn('Choir phrase style', id, role, 'line totals', total, 'beats:', src);
+        return toks;
+      });
+    });
+  });
+
+  function phraseStyle(){
+    const el = document.getElementById('phraseStyle');
+    return el ? PHRASE_STYLES[el.value] || null : null;
+  }
+
+  // Pool indices whose note is the key root, or a chord tone of the tonic triad (root, 3rd, 5th).
+  function tonicPis(pool, sc){
+    const third = sc.intervals.includes(4) ? 4 : 3;
+    const roots = [], chord = [];
+    pool.forEach((s,i) => {
+      const pc = ((s % 12) + 12) % 12;
+      if(pc === 0) roots.push(i);
+      if(pc === 0 || pc === third || pc === 7) chord.push(i);
+    });
+    return { roots, chord };
+  }
+  function nearestOf(pi, list, preferLower){
+    if(!list.length) return pi;
+    let best = list[0];
+    list.forEach(c => {
+      const d = Math.abs(c - pi), bd = Math.abs(best - pi);
+      if(d < bd || (d === bd && (preferLower ? c < best : c > best))) best = c;
+    });
+    return best;
+  }
+
+  // Where a slot sits inside its 2-bar line, for per-line contours.
+  function lineSpan(slots, idx){
+    const line = slots[idx].line;
+    let first = idx, last = idx;
+    while(first > 0 && slots[first-1].line === line) first--;
+    while(last < slots.length-1 && slots[last+1].line === line) last++;
+    return { i: idx - first, len: last - first + 1 };
+  }
+
+  // The contour target for a slot: the whole motif in free mode; per line when a style is on
+  // and Contour is set to the genre's own shape.
+  function slotContour(slots, idx, poolLen){
+    const st = phraseStyle();
+    let shape = contourShape();
+    if(st && shape === 'style'){
+      const ls = lineSpan(slots, idx);
+      return contourTarget(ls.i, ls.len, poolLen, st.contour);
+    }
+    if(shape === 'style') shape = 'arch';
+    return contourTarget(idx, slots.length, poolLen, shape);
+  }
+
+  // Applies the style's pitch rules to one slot: repeats, melisma steps, the range window,
+  // and the landing notes at line ends and the cadence.
+  function shapeStyledPitch(slots, idx, pool, st){
+    const slot = slots[idx], poolLen = pool.length;
+    if(slot.rest || poolLen < 2) return;
+    let prev = null;
+    for(let j=idx-1; j>=0; j--){ if(!slots[j].rest){ prev = slots[j]; break; } }
+    if(prev){
+      if(slot.rep) slot.pi = prev.pi;
+      else if(slot.slur){
+        // A run moves stepwise, mostly in the style's run direction, bouncing off the pool ends.
+        const dir = Math.random() < 0.8 ? st.runDir : -st.runDir;
+        let pi = prev.pi + dir;
+        if(pi < 0 || pi > poolLen-1) pi = prev.pi - dir;
+        slot.pi = clamp(pi, 0, poolLen-1);
+      }
+    }
+    if(st.span){
+      // Keep the line inside a narrow window around the phrase's first note.
+      const anchor = slots.find(s => !s.rest);
+      const lo = clamp(anchor.pi - Math.floor(st.span/2), 0, Math.max(0, poolLen-st.span));
+      slot.pi = clamp(slot.pi, lo, Math.min(poolLen-1, lo + st.span - 1));
+    }
+    if(slot.mark){
+      const t = tonicPis(pool, currentScale());
+      if(slot.mark === 'final') slot.pi = nearestOf(slot.pi, t.roots.length ? t.roots : t.chord, true);
+      else {
+        // An open ending prefers the 3rd or 5th so the line sounds unfinished.
+        const open = t.chord.filter(i => !t.roots.includes(i));
+        slot.pi = nearestOf(slot.pi, open.length ? open : t.chord, false);
+      }
+    }
+  }
+
+  // Chooses each note's inflection from the ticked ones, placed the way the genre uses it:
+  // accents where the rhythm marks them, scoops into the first note of a line, vibrato on held
+  // notes. Anything else gets the usual random pick.
+  function styledExpression(slots, idx, st){
+    const slot = slots[idx];
+    if(exprAllTogether()) return rollExpression();
+    const ids = enabledInflections();
+    const ls = lineSpan(slots, idx);
+    let firstSung = true;
+    for(let j=idx-ls.i; j<idx; j++){ if(!slots[j].rest){ firstSung = false; break; } }
+    if(st.accent && slot.accent && ids.includes('accent')) return 'accent';
+    if(st.vibrato && (slot.beats >= 1.5 || slot.mark) && ids.includes('vibrato')) return 'vibrato';
+    if(st.scoop && firstSung && !slot.slur && ids.includes('scoop')) return 'scoop';
+    if(slot.slur) return 'plain';
+    return rollExpression();
+  }
+
+  // Builds the slots for one line of a styled phrase, continuing the pitch from the slot before.
+  function buildStyledLine(slots, lineIdx, role, patIdx, st, pool){
+    const pat = st[role][patIdx];
+    const start = slots.length;
+    pat.forEach(tok => {
+      slots.push({ pi:0, beats:tok.beats, rest:tok.rest, slur:tok.slur, mark:tok.mark, rep:tok.rep,
+                   accent:tok.accent, line:lineIdx, role, pat:patIdx, expr:'plain' });
+    });
+    for(let i=start; i<slots.length; i++) pitchStyledSlot(slots, i, st, pool);
+    for(let i=start; i<slots.length; i++) slots[i].expr = styledExpression(slots, i, st);
+  }
+
+  function pitchStyledSlot(slots, i, st, pool){
+    const poolLen = pool.length, slot = slots[i];
+    let prevIdx = -1;
+    for(let j=i-1; j>=0; j--){ if(!slots[j].rest){ prevIdx = j; break; } }
+    if(prevIdx < 0){
+      const target = slotContour(slots, i, poolLen);
+      slot.pi = target === null ? Math.floor(Math.random()*poolLen)
+                                : clamp(Math.round(target + (Math.random()-0.5)*2), 0, poolLen-1);
+      // Phrases set out from a chord tone, which also anchors narrow-range styles on solid ground.
+      slot.pi = nearestOf(slot.pi, tonicPis(pool, currentScale()).chord, Math.random() < 0.5);
+    } else if(Math.random() < st.repeat){
+      slot.pi = slots[prevIdx].pi;
+    } else {
+      let prev2 = -1;
+      for(let j=prevIdx-1; j>=0; j--){ if(!slots[j].rest){ prev2 = j; break; } }
+      const prevMove = prev2 >= 0 ? slots[prevIdx].pi - slots[prev2].pi : 0;
+      slot.pi = nextPi(slots[prevIdx].pi, prevMove, i, slots.length, poolLen, {
+        target: slotContour(slots, i, poolLen), leapScale: st.leap
+      });
+    }
+    shapeStyledPitch(slots, i, pool, st);
+  }
+
+  function buildStyledMotif(st){
+    const pool = getNotePool();
+    const slots = [];
+    buildStyledLine(slots, 0, 'a', Math.floor(Math.random()*st.a.length), st, pool);
+    buildStyledLine(slots, 1, 'b', Math.floor(Math.random()*st.b.length), st, pool);
+    return slots;
+  }
+
+  // Rhythm evolution for a styled phrase: on each pass, each line may swap to another rhythm of
+  // the same role. The other line keeps its notes, so the phrase changes a line at a time.
+  function evolveStyledMotif(st){
+    const evo = parseFloat(document.getElementById('rhythmEvolution').value)/100;
+    const pool = getNotePool();
+    let changed = false;
+    const lines = [0,1].map(l => motif.filter(s => s.line === l));
+    [0,1].forEach(l => {
+      const role = l === 0 ? 'a' : 'b';
+      if(st[role].length < 2 || Math.random() >= evo) return;
+      const cur = lines[l][0] ? lines[l][0].pat : 0;
+      let next = Math.floor(Math.random()*(st[role].length-1));
+      if(next >= cur) next++;
+      const rebuilt = l === 0 ? [] : lines[0].slice();
+      buildStyledLine(rebuilt, l, role, next, st, pool);
+      lines[l] = rebuilt.filter(s => s.line === l);
+      changed = true;
+    });
+    if(changed) motif = lines[0].concat(lines[1]);
+  }
+
+  // A styled motif from an older save or another style is rebuilt; a matching one is kept.
+  function styledMotifValid(st){
+    if(!motif.length || motif.some(s => s.line === undefined)) return false;
+    const total = motif.reduce((s,x)=>s+x.beats, 0);
+    return Math.abs(total - PHRASE_BEATS) < 1e-6 && motif.every(s => st[s.role] && st[s.role][s.pat]);
+  }
+
+  // Timing feel: swing moves the off-beat 8ths (or 16ths) later, and a laid-back style sings a
+  // few milliseconds behind the beat. Works on Choir's own beats, then maps to the clock.
+  function swingWarp(cb, st){
+    if(!st.swing) return cb;
+    const P = 2*st.swingUnit;
+    const r = 0.5 + st.swing/6; // 0.5 = straight, 2/3 = full triplet swing
+    const base = Math.floor(cb/P + 1e-9)*P;
+    const f = clamp((cb - base)/P, 0, 1);
+    const g = f < 0.5 ? f*2*r : r + (f-0.5)*2*(1-r);
+    return base + g*P;
+  }
+  function feelShift(clockBeat){
+    const st = phraseStyle();
+    if(!st) return 0;
+    const m = tempoMult(), cb = clockBeat/m;
+    return (swingWarp(cb, st) - cb)*m + st.laidMs*jam.bpm()/60000;
+  }
+
   // ----- Melodic contour -----
   // A "step" is a move to the neighbouring note in the pool, a "leap" skips one or more.
   // (Raise Number of notes for smaller steps; lower it for a more arpeggiated line.)
@@ -1788,15 +2144,18 @@
     if(shape === 'rising')       u = 0.15 + 0.7*t;
     else if(shape === 'falling') u = 0.85 - 0.7*t;
     else if(shape === 'wave')    u = 0.5 + 0.35*Math.sin(2*Math.PI*t);
+    else if(shape === 'flat')    u = 0.4; // chant / rap: hovers around one pitch
     else return null;
     return u * (poolLen-1);
   }
 
   // Next note for a new phrase: mostly a step toward the contour, sometimes a leap, and
   // a leap is usually followed by a step back the other way. Bounces off the ends of the pool.
-  function nextPi(prevPi, prevMove, i, len, poolLen){
+  function nextPi(prevPi, prevMove, i, len, poolLen, opt){
     if(poolLen <= 1) return 0;
-    const target = contourTarget(i, len, poolLen, contourShape());
+    const shape = contourShape() === 'style' ? 'arch' : contourShape();
+    const target = opt ? opt.target : contourTarget(i, len, poolLen, shape);
+    const leapProb = leapiness() * (opt ? opt.leapScale : 1);
     const wasLeap = Math.abs(prevMove) >= 2;
     let dir, size;
     if(wasLeap && Math.random() < 0.85){
@@ -1804,7 +2163,7 @@
       size = 1;
     } else {
       if(Math.random() < 0.06) return prevPi; // now and then a note repeats
-      const leap = poolLen > 2 && Math.random() < leapiness();
+      const leap = poolLen > 2 && Math.random() < leapProb;
       size = leap ? 2 + Math.floor(Math.random()*Math.min(3, poolLen-2)) : 1;
       if(target === null){
         dir = Math.random() < 0.5 ? -1 : 1;
@@ -1824,7 +2183,7 @@
   function newSlot(slots, i, len, poolLen){
     let pi;
     if(i === 0){
-      const target = contourTarget(0, len, poolLen, contourShape());
+      const target = contourTarget(0, len, poolLen, contourShape() === 'style' ? 'arch' : contourShape());
       pi = target === null ? Math.floor(Math.random()*poolLen)
                            : clamp(Math.round(target + (Math.random()-0.5)*2), 0, poolLen-1);
     } else {
@@ -1835,6 +2194,13 @@
   }
 
   function buildMotif(){
+    const st = phraseStyle();
+    if(st){
+      motif = buildStyledMotif(st);
+      motifIndex = 0;
+      motifPass = 0;
+      return;
+    }
     const len = parseInt(document.getElementById('motifLength').value,10);
     const poolLen = getNotePool().length;
     motif = [];
@@ -1848,6 +2214,7 @@
   }
 
   function resizeMotif(){
+    if(phraseStyle()) return; // a styled phrase is always four bars
     const len = parseInt(document.getElementById('motifLength').value,10);
     const poolLen = getNotePool().length;
     while(motif.length < len) motif.push(newSlot(motif, motif.length, len, poolLen));
@@ -1861,7 +2228,7 @@
   function mutatePitch(slot, idx, len, poolLen){
     const evo = parseFloat(document.getElementById('pitchEvolution').value)/100;
     if(poolLen < 2 || Math.random() >= evo) return;
-    const target = contourTarget(idx, len, poolLen, contourShape());
+    const target = slotContour(motif, idx, poolLen);
     const free = target === null || Math.random() < clamp((evo - 0.5) * 2, 0, 1);
     if(free){
       const range = Math.max(1, Math.round(evo * (poolLen-1)));
@@ -1871,7 +2238,8 @@
       return;
     }
     const maxLeap = Math.max(1, Math.round(evo * (poolLen-1)));
-    const leap = maxLeap >= 2 && Math.random() < leapiness();
+    const st = phraseStyle();
+    const leap = maxLeap >= 2 && Math.random() < leapiness() * (st ? st.leap : 1);
     const size = leap ? 2 + Math.floor(Math.random()*(maxLeap-1)) : 1;
     const diff = target - slot.pi;
     let dir = Math.abs(diff) < 0.5 ? (Math.random() < 0.5 ? -1 : 1) : Math.sign(diff);
@@ -2104,34 +2472,62 @@
   // pass is stated as written; from the second pass on, each slot is mutated (pitch and rhythm
   // independently) just before it plays.
   function playNextSlot(when){
-    if(!motif.length) buildMotif();
+    const st = phraseStyle();
+    if(!motif.length || (st && !styledMotifValid(st))) buildMotif();
     if(motifIndex >= motif.length) motifIndex = 0;
+    const m = tempoMult();
+
+    // A styled phrase starts on a bar line. If the phrase is due mid-bar (the style was just
+    // picked, or Half time was toggled), wait silently for the next bar of Choir's own beats.
+    if(st && motifIndex === 0){
+      const cb = nextBeat / m;
+      const intoBar = cb - Math.floor(cb/BAR_BEATS_CHOIR + 1e-6)*BAR_BEATS_CHOIR;
+      if(intoBar > 1e-6 && intoBar < BAR_BEATS_CHOIR - 1e-6){
+        restOn();
+        return (BAR_BEATS_CHOIR - intoBar) * m;
+      }
+      if(motifPass > 0) evolveStyledMotif(st);
+    }
+
     const pool = getNotePool();
     const slot = motif[motifIndex];
     const idx = motifIndex, len = motif.length;
     if(motifPass > 0){
       mutatePitch(slot, idx, len, pool.length);
-      mutateRhythm(slot);
+      if(!st) mutateRhythm(slot);
       mutateExpression(slot);
     }
-    sanitizeSlot(slot, pool.length);
+    if(st){
+      slot.pi = clamp(slot.pi, 0, pool.length-1);
+      shapeStyledPitch(motif, idx, pool, st); // re-land line endings after any pitch mutation
+    } else {
+      sanitizeSlot(slot, pool.length);
+    }
     sanitizeExpression(slot);
 
     // Half time: each Choir beat spans two beats of the shared clock, so the phrase moves at half
     // the tempo while staying locked to the same grid as the other apps.
-    const span = slot.beats * tempoMult();
-    const durationSec = span * (60/jam.bpm());
+    const span = slot.beats * m;
+    // Swing and laid-back feel move note starts, so a note lasts until the next one's moved start.
+    const feltSpan = span + feelShift(nextBeat + span) - feelShift(nextBeat);
+    const durationSec = feltSpan * (60/jam.bpm());
     document.getElementById('motifReadout').textContent = (idx+1)+'/'+len+' · pass '+(motifPass+1);
     if(idx === 0) logPhraseStart();
     jam.trace(when, idx);
 
-    if(slot.rest && restIsEnabled()){
+    if(slot.rest && (st || restIsEnabled())){
       restOn();
       document.getElementById('exprReadout').textContent = 'rest';
     } else {
       const expr = buildExpression(slot, idx, len, pool.length);
-      document.getElementById('exprReadout').textContent = expr.label;
-      noteOn(durationSec, span, pool[slot.pi], expr); // longer real notes get fuller vibrato
+      document.getElementById('exprReadout').textContent = expr.label + (slot.slur ? ' · run' : '');
+      const next = motif[(idx+1) % len];
+      noteOn(durationSec, span, pool[slot.pi], expr, st ? {
+        slur: slot.slur,
+        legatoNext: !!(next && next.slur && !next.rest),
+        gateScale: slot.mark || slot.beats >= 1.5 ? 1 : st.gate,
+        holdEnd: !!slot.mark
+      } : null); // longer real notes get fuller vibrato
       logNote(durationSec, slot.beats, pool[slot.pi], expr);
     }
 
@@ -2151,7 +2547,7 @@
   function pump(){
     if(!running) return;
     for(let guard=0; guard<16; guard++){
-      const when = jam.timeOfBeat(nextBeat);
+      const when = jam.timeOfBeat(nextBeat + feelShift(nextBeat)); // swing / laid-back, if a style is on
       if(when > ctx.currentTime + 0.12) break;
       tNow = Math.max(when, ctx.currentTime);
       try{ nextBeat += playNextSlot(tNow); } finally { tNow = null; }
@@ -2200,7 +2596,7 @@
     g.linearRampToValueAtTime(0, now + len);
   }
 
-  function scheduleFilterEnvelope(gateOnSec, liftOct){
+  function scheduleFilterEnvelope(gateOnSec, liftOct, carryOn){
     if(!vocalFilter) return;
     const now = T();
     const base = parseFloat(document.getElementById('filterCutoff').value);
@@ -2214,35 +2610,53 @@
     if(attackSec > gateOnSec) attackSec = gateOnSec;
     if(attackSec + decaySec > gateOnSec) decaySec = Math.max(0, gateOnSec - attackSec);
     vocalFilter.frequency.cancelScheduledValues(now);
-    vocalFilter.frequency.setValueAtTime(base, now);
-    vocalFilter.frequency.linearRampToValueAtTime(peak, now + attackSec);
-    vocalFilter.frequency.linearRampToValueAtTime(sustainLevel, now + attackSec + decaySec);
+    if(carryOn){
+      // A melisma note: no new sweep, just hold the sustain level through to its release.
+      vocalFilter.frequency.setValueAtTime(sustainLevel, now);
+    } else {
+      vocalFilter.frequency.setValueAtTime(base, now);
+      vocalFilter.frequency.linearRampToValueAtTime(peak, now + attackSec);
+      vocalFilter.frequency.linearRampToValueAtTime(sustainLevel, now + attackSec + decaySec);
+    }
     vocalFilter.frequency.setValueAtTime(sustainLevel, now + gateOnSec);
     vocalFilter.frequency.linearRampToValueAtTime(base, now + gateOnSec + releaseSec);
   }
 
-  function noteOn(durationSec, beats, semis, expr){
+  // opts (phrase styles only): slur = a melisma note, sung on the same syllable without a new
+  // attack; legatoNext = the next note is slurred, so hold this one right up to it; gateScale =
+  // the style's syllable length; holdEnd = a line ending, sung for its full length.
+  function noteOn(durationSec, beats, semis, expr, opts){
     expr = expr || NO_EXPR;
-    applyPitchTarget(semis, expr, durationSec);
+    opts = opts || {};
+    applyPitchTarget(semis, opts.slur ? Object.assign({}, expr, { scoop:false }) : expr, durationSec);
     if(!envGain) return;
     const now = T();
     let attackSec = parseFloat(document.getElementById('attack').value)/1000;
     if(expr.accent) attackSec = Math.max(0.002, attackSec * 0.4); // accents hit faster
     const releaseSec = parseFloat(document.getElementById('release').value)/1000;
-    const gateFrac = parseFloat(document.getElementById('gateLen').value)/100;
+    let gateFrac = parseFloat(document.getElementById('gateLen').value)/100;
+    if(opts.gateScale !== undefined) gateFrac *= opts.gateScale;
+    if(opts.holdEnd) gateFrac = Math.max(gateFrac, 0.92);
+    if(opts.legatoNext) gateFrac = 1;
     let gateOnSec = Math.max(durationSec * gateFrac, attackSec + 0.005);
     if(gateOnSec > durationSec) gateOnSec = durationSec;
     envGain.gain.cancelScheduledValues(now);
-    envGain.gain.setValueAtTime(0.0001, now);
-    envGain.gain.linearRampToValueAtTime(expr.level, now + attackSec);
+    if(opts.slur){
+      // Melisma: the voice is already sounding (the note before held its gate open), so carry on.
+      envGain.gain.setValueAtTime(expr.level, now);
+    } else {
+      envGain.gain.setValueAtTime(0.0001, now);
+      envGain.gain.linearRampToValueAtTime(expr.level, now + attackSec);
+    }
     envGain.gain.setValueAtTime(expr.level, now + gateOnSec);
     envGain.gain.linearRampToValueAtTime(0.0001, now + gateOnSec + releaseSec);
-    scheduleFilterEnvelope(gateOnSec, expr.accent ? 0.8 * expr.intensity : 0); // accents are brighter
+    scheduleFilterEnvelope(gateOnSec, expr.accent ? 0.8 * expr.intensity : 0, !!opts.slur); // accents are brighter
     scheduleVibrato(gateOnSec, beats, expr);
-    scheduleBreath(durationSec, expr);
+    if(!opts.slur) scheduleBreath(durationSec, expr);
 
-    // Syllable sync: the vowel sequence steps on note onsets (rests don't count as syllables).
-    if(vowelSynced()){
+    // Syllable sync: the vowel sequence steps on note onsets (rests don't count as syllables, and
+    // nor do the extra notes of a melisma).
+    if(vowelSynced() && !opts.slur){
       const every = parseInt(document.getElementById('vowelEvery').value,10);
       if(notesSinceVowel % every === 0) applyVowelTarget({ beats });
       notesSinceVowel++;
@@ -2553,6 +2967,27 @@
   });
   document.getElementById('newMotifBtn').addEventListener('click', buildMotif);
   document.getElementById('contourShape').addEventListener('change', ()=>{ buildMotif(); });
+
+  // Phrase style: a genre mask takes over note lengths, rests and motif length, so those
+  // controls are dimmed while it is on. Picking a style also switches Contour to the genre's
+  // own per-line shape (change it back afterwards if you prefer your own).
+  function updatePhraseStyleUI(){
+    const st = phraseStyle();
+    const hint = document.getElementById('phraseStyleHint');
+    hint.hidden = !st;
+    hint.textContent = st ? st.hint + ' Four bars: an open line, then a line that comes home.' : '';
+    document.getElementById('noteValues').classList.toggle('styled-off', !!st);
+    document.getElementById('motifLength').closest('.fld').classList.toggle('styled-knob', !!st);
+  }
+  document.getElementById('phraseStyle').addEventListener('change', ()=>{
+    const contour = document.getElementById('contourShape');
+    if(!applyingState){
+      if(phraseStyle()) contour.value = 'style';
+      else if(contour.value === 'style') contour.value = 'arch';
+    }
+    updatePhraseStyleUI();
+    buildMotif();
+  });
   document.getElementById('leapiness').addEventListener('input', e=>{
     document.getElementById('leapinessVal').textContent = e.target.value+'%';
   });
@@ -2670,7 +3105,12 @@
     };
   }
 
+  var applyingState = false; // true while a saved pattern's controls are being put back
   function applyState(state){
+    applyingState = true;
+    try{ applyStateControls(state); } finally { applyingState = false; }
+  }
+  function applyStateControls(state){
     const c = state.controls || {};
     Object.keys(c).forEach(key => {
       let el;
