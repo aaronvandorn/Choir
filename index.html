@@ -305,6 +305,14 @@
           <option value="reggae">Reggae</option>
           <option value="chorale">Chorale / Hymn</option>
         </select>
+      </div><div class="fld" id="phraseMeterCtrl">
+        <label>Meter</label>
+        <select id="phraseMeter">
+          <option value="4/4" selected>4/4</option>
+          <option value="3/4">3/4</option>
+          <option value="6/8">6/8</option>
+          <option value="12/8">12/8</option>
+        </select>
       </div><div class="full style-hint" id="phraseStyleHint" hidden></div><div class="sec">Clock</div><div class="fld">
         <label>Tempo <span class="val" id="bpmVal">96 BPM</span></label>
         <input type="range" id="bpm" min="40" max="240" step="1" value="96">
@@ -1901,16 +1909,114 @@
           'q q q q | w!' ]
     }
   };
-  const PHRASE_BEATS = 16, LINE_BEATS = 8, BAR_BEATS_CHOIR = 4;
+  // ----- Meters -----
+  // In 3/4 a beat is a quarter note. In 6/8 and 12/8 a beat is a dotted quarter (how drummers
+  // count them), so an 8th is a third of a beat, the feel is triplet by nature, and a 12/8 bar
+  // is exactly one 4/4 bar of a linked drum machine. Lines are two bars in 4/4 and 12/8, and four
+  // bars in 3/4 and 6/8, where bars are short, so every phrase is two lines either way.
+  const METERS = {
+    '4/4':  { name:'4/4',  barBeats:4, quarter:1,   lineBars:2, compound:false, midi:[4,2] },
+    '3/4':  { name:'3/4',  barBeats:3, quarter:1,   lineBars:4, compound:false, midi:[3,2] },
+    '6/8':  { name:'6/8',  barBeats:2, quarter:2/3, lineBars:4, compound:true,  midi:[6,3] },
+    '12/8': { name:'12/8', barBeats:4, quarter:2/3, lineBars:2, compound:true,  midi:[12,3] }
+  };
+
+  // Line rhythms for the other meters, written in the same notation. In 6/8 and 12/8: e = 8th,
+  // q = two 8ths, q. = a beat, h. = two beats, w. = a full 12/8 bar. Only genres with a real
+  // tradition in a meter get one (hip-hop and reggae stay in 4/4).
+  const STYLE_METERS = {
+    pop: {
+      '3/4':  { a:[ 'q q q | h e e | q q q | h.^',
+                    'rq e e q | h q | e e q q | h^ rq' ],
+                b:[ 'q q q | q. e q | e e q q | h.!',
+                    'rq q q | h e e | q q= q | h! rq' ] },
+      '6/8':  { a:[ 're e e q. | e e e q e | q. q. | h.^',
+                    'q e q e | q. re e e | q e q e | h.^' ],
+                b:[ 're e e q e | q. q. | q e q e | h.!',
+                    'q e q e | q. q. | e e e q e | h.!' ] },
+      '12/8': { a:[ 're e e q e q e q. | h.^ rq. re e e',
+                    'q e q e q. e e e | h.^ rh.' ],
+                b:[ 'q e q e e e e q. | h.! rq. re e e',
+                    'q. q e q. e e e | w.!' ] }
+    },
+    country: {
+      '3/4':  { a:[ 'rq rq q | q. e q= | h q | h.^',
+                    'q q q= | h q | q q q | h^ q' ],
+                b:[ 'q q q= | h e e | q q q | h.!',
+                    'e e q q | h q | q. e q | h! q' ] },
+      '6/8':  { a:[ 'rq e q e | q. q e | q. q. | h.^',
+                    'e e e q e | q. q. | e e e e e e | h.^' ],
+                b:[ 'rq e q e= | q. q e | q e q e | h.!',
+                    'e e e q. | q e q e | q. q. | h.!' ] },
+      '12/8': { a:[ 'q e q e q e q e | h.^ rq. re e e',
+                    're e e q. q e q. | h.^ rh.' ],
+                b:[ 'q e q e q. q e | h.! rq. re e e',
+                    'e e e q. q e q. | w.!' ] }
+    },
+    rnb: {
+      '12/8': { a:[ 're e e q. q e ~e ~e ~e | h.^ rh.',
+                    'q. e e e q e ~e ~e ~e | ~h.^ rq. re e e' ],
+                b:[ 're e e q e q e ~e ~e ~e | ~e ~e ~e ~e ~e ~e h.!',
+                    'q. q. q e ~e ~e ~e | h.! rh.' ] }
+    },
+    rock: {
+      '6/8':  { a:[ 'q.> q. | e e e q. | q.> q e | h.^',
+                    'q.> e e e | q. q. | q.> e e e | h.^' ],
+                b:[ 'q.> q. | e e e q. | q.> e e e | h.!',
+                    'q.> e q | q. q. | e e e q.> | h.!' ] },
+      '12/8': { a:[ 'q.> q. q.> q. | q. q e h.^',
+                    'q.> e e e q.> q. | h.^ rh.' ],
+                b:[ 'q.> q. q e q.> | h.! rh.',
+                    'e> e e q. q.> e e e | h.! rq. re e e' ] }
+    },
+    folk: {
+      '3/4':  { a:[ 'rq rq q | q q q | h q | h.^',
+                    'q q q | h q | q q q | h.^' ],
+                b:[ 'q q q | h q | q q q | h.!',
+                    'q h | q q q | q q q | h.!' ] },
+      '6/8':  { a:[ 're re e q e | q e q e | q. q e | h.^',
+                    'q e q e | q. q. | q e q e | h.^' ],
+                b:[ 'q e q e | q. e e e | q e q e | h.!',
+                    'e e e q e | q. q. | q e e e e | h.!' ] }
+    },
+    gospel: {
+      '3/4':  { a:[ 'q q q | h ~e ~e | q q q | h.^',
+                    'rq q q | h. | rq q q | h.^' ],
+                b:[ 'q q q | q ~e ~e ~e ~e | q q q | h.!',
+                    'q q q | h. | q ~e ~e q | h.!' ] },
+      '12/8': { a:[ 'q. q e q. ~e ~e ~e | h.^ rh.',
+                    're e e q e q e q. | h.^ rq. e e e' ],
+                b:[ 'q. q e ~e ~e ~e ~e ~e ~e | w.!',
+                    'e e e q. q e ~e ~e ~e | ~h.! rh.' ] }
+    },
+    blues: {
+      '12/8': { a:[ 're e e q e q. q. | h.^ rh.',
+                    'q e q e q. ~e ~e ~e | h.^ rh.' ],
+                b:[ 're e e q e q e q. | h.! rh.',
+                    'q e q. q e ~e ~e ~e | h.! rq. re e e' ] }
+    },
+    chorale: {
+      '3/4':  { a:[ 'h q | h q | h q | h.^',
+                    'q q q | h q | q q q | h.^' ],
+                b:[ 'h q | q q q | h q | h.!',
+                    'q q q | q q q | h q | h.!' ] },
+      '6/8':  { a:[ 'q. q e | q. q. | q e q e | h.^',
+                    'q e q e | q. q. | q. q e | h.^' ],
+                b:[ 'q. q e | q e q e | q. q. | h.!',
+                    'q e q e | q. q e | q. q. | h.!' ] }
+    }
+  };
+
   const TOKEN_BEATS = { w:4, h:2, q:1, e:0.5, s:0.25 };
 
-  function parseLine(str){
+  function parseLine(str, quarter){
+    quarter = quarter || 1;
     const out = [];
     str.split(/\s+/).forEach(tok => {
       if(!tok || tok === '|') return;
       const m = /^(~?)(r?)([whqes])(\.?)(t?)([\^!=>]*)$/.exec(tok);
       if(!m){ console.warn('Choir phrase style: bad token', tok); return; }
-      let beats = TOKEN_BEATS[m[3]];
+      let beats = TOKEN_BEATS[m[3]] * quarter;
       if(m[4]) beats *= 1.5;
       if(m[5]) beats *= 2/3;
       const marks = m[6];
@@ -1923,23 +2029,41 @@
     return out;
   }
 
-  // Parse every line once at load, and check each one fills its two bars exactly.
+  // Parse every line once at load into st.lines[meter] = { a, b }, and check each line fills its
+  // bars exactly (the page warns in the console if one does not).
   Object.keys(PHRASE_STYLES).forEach(id => {
     const st = PHRASE_STYLES[id];
-    ['a','b'].forEach(role => {
-      st[role] = st[role].map(src => {
-        const toks = parseLine(src);
-        const total = toks.reduce((s,t)=>s+t.beats, 0);
-        if(Math.abs(total - LINE_BEATS) > 1e-6) console.warn('Choir phrase style', id, role, 'line totals', total, 'beats:', src);
-        return toks;
+    const sources = Object.assign({ '4/4': { a: st.a, b: st.b } }, STYLE_METERS[id] || {});
+    st.lines = {};
+    Object.keys(sources).forEach(mk => {
+      const mt = METERS[mk], want = mt.barBeats * mt.lineBars;
+      st.lines[mk] = {};
+      ['a','b'].forEach(role => {
+        st.lines[mk][role] = sources[mk][role].map(src => {
+          const toks = parseLine(src, mt.quarter);
+          const total = toks.reduce((s,t)=>s+t.beats, 0);
+          if(Math.abs(total - want) > 1e-6) console.warn('Choir phrase style', id, mk, role, 'line totals', total, 'of', want, 'beats:', src);
+          return toks;
+        });
       });
     });
   });
 
+  function currentMeter(){
+    const el = document.getElementById('phraseMeter');
+    return METERS[el ? el.value : '4/4'] || METERS['4/4'];
+  }
+  function lineBeats(){ const mt = currentMeter(); return mt.barBeats * mt.lineBars; }
+  function phraseBeats(){ return 2 * lineBeats(); }
+
+  // The selected style, or null for Free (or a style with no lines in the selected meter).
   function phraseStyle(){
     const el = document.getElementById('phraseStyle');
-    return el ? PHRASE_STYLES[el.value] || null : null;
+    const st = el ? PHRASE_STYLES[el.value] || null : null;
+    return st && st.lines[currentMeter().name] ? st : null;
   }
+  // The style's line rhythms for the selected meter.
+  function styleLines(st){ return st.lines[currentMeter().name]; }
 
   // Pool indices whose note is the key root, or a chord tone of the tonic triad (root, 3rd, 5th).
   function tonicPis(pool, sc){
@@ -2037,11 +2161,12 @@
 
   // Builds the slots for one line of a styled phrase, continuing the pitch from the slot before.
   function buildStyledLine(slots, lineIdx, role, patIdx, st, pool){
-    const pat = st[role][patIdx];
+    const pat = styleLines(st)[role][patIdx];
+    const meter = currentMeter().name;
     const start = slots.length;
     pat.forEach(tok => {
       slots.push({ pi:0, beats:tok.beats, rest:tok.rest, slur:tok.slur, mark:tok.mark, rep:tok.rep,
-                   accent:tok.accent, line:lineIdx, role, pat:patIdx, expr:'plain' });
+                   accent:tok.accent, line:lineIdx, role, pat:patIdx, meter, expr:'plain' });
     });
     for(let i=start; i<slots.length; i++) pitchStyledSlot(slots, i, st, pool);
     for(let i=start; i<slots.length; i++) slots[i].expr = styledExpression(slots, i, st);
@@ -2073,8 +2198,9 @@
   function buildStyledMotif(st){
     const pool = getNotePool();
     const slots = [];
-    buildStyledLine(slots, 0, 'a', Math.floor(Math.random()*st.a.length), st, pool);
-    buildStyledLine(slots, 1, 'b', Math.floor(Math.random()*st.b.length), st, pool);
+    const L = styleLines(st);
+    buildStyledLine(slots, 0, 'a', Math.floor(Math.random()*L.a.length), st, pool);
+    buildStyledLine(slots, 1, 'b', Math.floor(Math.random()*L.b.length), st, pool);
     return slots;
   }
 
@@ -2087,9 +2213,10 @@
     const lines = [0,1].map(l => motif.filter(s => s.line === l));
     [0,1].forEach(l => {
       const role = l === 0 ? 'a' : 'b';
-      if(st[role].length < 2 || Math.random() >= evo) return;
+      const opts = styleLines(st)[role];
+      if(opts.length < 2 || Math.random() >= evo) return;
       const cur = lines[l][0] ? lines[l][0].pat : 0;
-      let next = Math.floor(Math.random()*(st[role].length-1));
+      let next = Math.floor(Math.random()*(opts.length-1));
       if(next >= cur) next++;
       const rebuilt = l === 0 ? [] : lines[0].slice();
       buildStyledLine(rebuilt, l, role, next, st, pool);
@@ -2103,13 +2230,14 @@
   function styledMotifValid(st){
     if(!motif.length || motif.some(s => s.line === undefined)) return false;
     const total = motif.reduce((s,x)=>s+x.beats, 0);
-    return Math.abs(total - PHRASE_BEATS) < 1e-6 && motif.every(s => st[s.role] && st[s.role][s.pat]);
+    const L = styleLines(st), meter = currentMeter().name;
+    return Math.abs(total - phraseBeats()) < 1e-6 && motif.every(s => (s.meter || '4/4') === meter && L[s.role] && L[s.role][s.pat]);
   }
 
   // Timing feel: swing moves the off-beat 8ths (or 16ths) later, and a laid-back style sings a
   // few milliseconds behind the beat. Works on Choir's own beats, then maps to the clock.
   function swingWarp(cb, st){
-    if(!st.swing) return cb;
+    if(!st.swing || currentMeter().compound) return cb; // 6/8 and 12/8 are already in triplets
     const P = 2*st.swingUnit;
     const r = 0.5 + st.swing/6; // 0.5 = straight, 2/3 = full triplet swing
     const base = Math.floor(cb/P + 1e-9)*P;
@@ -2481,10 +2609,11 @@
     // picked, or Half time was toggled), wait silently for the next bar of Choir's own beats.
     if(st && motifIndex === 0){
       const cb = nextBeat / m;
-      const intoBar = cb - Math.floor(cb/BAR_BEATS_CHOIR + 1e-6)*BAR_BEATS_CHOIR;
-      if(intoBar > 1e-6 && intoBar < BAR_BEATS_CHOIR - 1e-6){
+      const bar = currentMeter().barBeats;
+      const intoBar = cb - Math.floor(cb/bar + 1e-6)*bar;
+      if(intoBar > 1e-6 && intoBar < bar - 1e-6){
         restOn();
-        return (BAR_BEATS_CHOIR - intoBar) * m;
+        return (bar - intoBar) * m;
       }
       if(motifPass > 0) evolveStyledMotif(st);
     }
@@ -2971,14 +3100,39 @@
   // Phrase style: a genre mask takes over note lengths, rests and motif length, so those
   // controls are dimmed while it is on. Picking a style also switches Contour to the genre's
   // own per-line shape (change it back afterwards if you prefer your own).
+  const METER_NOTES = {
+    '4/4':  '',
+    '3/4':  ' In 3/4 against linked 4/4 drums the bar lines drift apart and meet again every 12 beats.',
+    '6/8':  ' Tempo counts dotted quarters, two per bar.',
+    '12/8': ' Tempo counts dotted quarters, so each bar is one 4/4 bar of a linked drum machine.'
+  };
   function updatePhraseStyleUI(){
     const st = phraseStyle();
+    const mt = currentMeter();
+    // Styles with no lines in this meter are greyed out in the menu.
+    Array.from(document.getElementById('phraseStyle').options).forEach(o => {
+      const s = PHRASE_STYLES[o.value];
+      o.disabled = !!s && !s.lines[mt.name];
+    });
     const hint = document.getElementById('phraseStyleHint');
     hint.hidden = !st;
-    hint.textContent = st ? st.hint + ' Four bars: an open line, then a line that comes home.' : '';
+    hint.textContent = st ? st.hint + ' ' + (mt.lineBars*2) + ' bars of ' + mt.name +
+      ': an open line, then a line that comes home.' + METER_NOTES[mt.name] : '';
+    document.getElementById('phraseMeterCtrl').classList.toggle('styled-off', document.getElementById('phraseStyle').value === 'free');
     document.getElementById('noteValues').classList.toggle('styled-off', !!st);
     document.getElementById('motifLength').closest('.fld').classList.toggle('styled-knob', !!st);
   }
+  document.getElementById('phraseMeter').addEventListener('change', ()=>{
+    const sel = document.getElementById('phraseStyle');
+    const cur = PHRASE_STYLES[sel.value];
+    // If the chosen style has no lines in the new meter, move to the first style that does.
+    if(cur && !cur.lines[currentMeter().name] && !applyingState){
+      const alt = Array.from(sel.options).find(o => PHRASE_STYLES[o.value] && PHRASE_STYLES[o.value].lines[currentMeter().name]);
+      if(alt) sel.value = alt.value;
+    }
+    updatePhraseStyleUI();
+    buildMotif();
+  });
   document.getElementById('phraseStyle').addEventListener('change', ()=>{
     const contour = document.getElementById('contourShape');
     if(!applyingState){
@@ -2988,6 +3142,7 @@
     updatePhraseStyleUI();
     buildMotif();
   });
+  updatePhraseStyleUI(); // the browser may have restored the menus from a previous visit
   document.getElementById('leapiness').addEventListener('input', e=>{
     document.getElementById('leapinessVal').textContent = e.target.value+'%';
   });
@@ -3330,7 +3485,10 @@
       events: noteLog.filter(e => e.time + e.gate > t0 && e.time < t1),
       phrases: phraseLog.filter(t => t > t0 && t < t1),
       anchor: gridAnchor,
-      bpm: parseFloat(document.getElementById('bpm').value)
+      bpm: parseFloat(document.getElementById('bpm').value),
+      // A styled phrase's meter sets the bar grid and the MIDI time signature; Free counts 4/4.
+      meter: phraseStyle() ? currentMeter() : METERS['4/4'],
+      barClock: (phraseStyle() ? currentMeter().barBeats : 4) * (phraseStyle() ? tempoMult() : 1)
     };
     buildBounds();
     document.getElementById('captureInfo').textContent = snap.events.length
@@ -3347,7 +3505,7 @@
     let pts = [];
     if(mode === 'phrase') pts = snap.phrases.map(t => t - snap.t0);
     else {
-      const step = (mode === 'bar' ? 4 : 1) * 60/snap.bpm;
+      const step = (mode === 'bar' ? (snap.barClock || 4) : 1) * 60/snap.bpm;
       for(let t = snap.anchor + Math.ceil((snap.t0 - snap.anchor)/step)*step; t < snap.t1; t += step) pts.push(t - snap.t0);
     }
     bounds = [0];
@@ -3498,13 +3656,15 @@
   // Format 1: a tempo track, then one track per choir voice (voice 1 is the melody).
   function buildMidi(events, startSec){
     const PPQ = 480;
-    const bpm = events.length ? events[0].bpm : snap.bpm;
+    const meter = (snap && snap.meter) || METERS['4/4'];
+    // MIDI tempo is always in quarter notes; in 6/8 and 12/8 the app's beat is a dotted quarter.
+    const bpm = (events.length ? events[0].bpm : snap.bpm) * (meter.compound ? 1.5 : 1);
     const ticks = sec => Math.max(0, Math.round(sec * bpm/60 * PPQ));
     const us = Math.round(60000000/bpm);
     const nVoices = events.reduce((m, e) => Math.max(m, e.notes.length), 0);
     const tracks = [buildTrack([
       { tick:0, order:0, bytes:[0xFF,0x51,0x03,(us>>16)&255,(us>>8)&255,us&255] },
-      { tick:0, order:0, bytes:[0xFF,0x58,0x04,4,2,24,8] }
+      { tick:0, order:0, bytes:[0xFF,0x58,0x04,meter.midi[0],meter.midi[1],meter.compound ? 36 : 24,8] }
     ])];
     for(let v=0; v<nVoices; v++){
       const ch = v < 9 ? v : v + 1; // channel 10 is percussion

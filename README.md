@@ -42,6 +42,7 @@ Live readout of the current pitch, vowel, and motif position (step and pass numb
 **Rhythm engine**
 Each slot in the motif gets a note length from whichever values are checked (whole down to 16th, plus dotted and triplet 8ths).
 - *Phrase style* — Free uses the note values below. A genre (Pop, Country, R&B / Soul, Rock, Hip-hop flow, Folk / Ballad, Gospel, Blues, Reggae, Chorale / Hymn) instead sings four-bar phrases shaped like that genre: two-bar lines that start on the bar, an open first line and a second line that cadences to the root, with the genre's syllable density, pickups, melismas, swing, laid-back timing, contour and inflection placement. Motif length and note values are taken over while a style is on. See [GENRE-MASKS.md](GENRE-MASKS.md) for the analysis behind each style
+- *Meter* — 4/4, 3/4, 6/8 or 12/8 for a phrase style. In 6/8 and 12/8 Tempo counts dotted quarters, so a 12/8 bar lines up with one 4/4 bar of a linked drum machine. 3/4 and 6/8 phrases are eight bars (four-bar lines). Styles without lines in a meter are greyed out. The snapshot bar grid and MIDI time signature follow the meter
 - *Tempo* — BPM the note values are measured against
 - *Feel: Half time* — the choir phrases at half the tempo (a quarter note lasts two beats), so vocals flow naturally over a faster beat. Only Choir changes: the shared tempo and linked apps stay where they are, and notes stay on the same beat grid. Saved with patterns
 - *Gate length* — how much of each note's duration actually sounds before the next one

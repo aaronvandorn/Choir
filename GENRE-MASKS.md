@@ -6,8 +6,9 @@ sung line sound like country rather than pop, measured in the things a melody ge
 control — note values, syllables per bar, where lines start and stop, how notes sit against the
 beat, and where the pitch goes.
 
-Everything here is about **4/4 time**, counted in Choir's own beats (with Half time on, each of
-those beats spans two beats of the shared clock).
+Most of this page is about **4/4 time**; [Other meters](#other-meters) covers 3/4, 6/8 and
+12/8. Beats are Choir's own beats (with Half time on, each of those beats spans two beats of the
+shared clock).
 
 ## The common skeleton
 
@@ -101,8 +102,50 @@ of switching to another rhythm of the same kind, so the phrase changes a line at
 keeps its question-and-answer shape. Pitch evolution still varies the notes, and line endings
 are re-landed afterwards so cadences stay intact.
 
+## Other meters
+
+The **Meter** menu next to Style picks 4/4, 3/4, 6/8 or 12/8. The same question-and-answer
+skeleton holds in every meter; what changes is the bar length, how the beat divides, and which
+genres actually live there.
+
+| Meter | Beat (what Tempo counts) | Beat divides into | Line / phrase | Genres with lines | Where it comes from |
+|---|---|---|---|---|---|
+| **4/4** | quarter note | two 8ths (swing optional) | 2 bars / 4 bars | all ten | the default for nearly all popular music |
+| **3/4** | quarter note | two 8ths | 4 bars / 8 bars | Pop, Country, Folk, Gospel, Chorale | waltzes, country waltzes, hymns, folk songs |
+| **6/8** | dotted quarter, two per bar | three 8ths | 4 bars / 8 bars | Pop, Country, Rock, Folk, Chorale | jigs and folk ballads, lullabies, power ballads |
+| **12/8** | dotted quarter, four per bar | three 8ths | 2 bars / 4 bars | Pop, Country, R&B, Rock, Gospel, Blues | slow blues, doo-wop and soul ballads, gospel, shuffles |
+
+**Why lines are longer in 3/4 and 6/8.** Their bars are short (three quarters, or two dotted
+quarters), so a lyric line usually spans four bars rather than two. A 3/4 hymn line such as
+"Amazing Grace" covers four bars; so does a 6/8 folk ballad line. That makes their phrases
+eight bars long.
+
+**Why the beat is a dotted quarter in 6/8 and 12/8.** That is how these meters are felt and
+counted: a 12/8 slow blues is "one-and-a, two-and-a, three-and-a, four-and-a", four beats each
+split in three. Counting it this way has a practical payoff: a 12/8 bar is exactly one 4/4 bar
+of a linked drum machine, so Choir's 12/8 gospel or blues lines sit on top of a 4/4 shuffle beat
+with every bar line shared. Swing is switched off in 6/8 and 12/8 because the triplet feel is
+already in the meter.
+
+**3/4 against 4/4 drums.** A linked drum machine still plays 4/4, so in 3/4 the bar lines drift
+apart and meet again every 12 beats (three of Choir's bars to four drum bars). That polymeter can
+sound good, but for a straight waltz, set the drums to a three-beat pattern if they have one.
+
+**Genre habits in the new meters.** Country waltzes lean on a quarter-note pickup on beat 3 and
+a dotted-half held to close each line. 3/4 hymns and chorales move in quarters with dotted-half
+cadences. 6/8 folk and pop use "long-short" quarter + 8th pairs (the lilt of a jig or a
+lullaby). 12/8 R&B and gospel put their melismas in triplet 8ths and hold the ends of lines for a
+dotted half (two beats). Hip-hop and reggae have no lines outside 4/4 and are greyed out in the
+other meters.
+
+The snapshot's bar grid and the **Export MIDI** time signature follow the meter of a styled
+phrase. In 6/8 and 12/8 the MIDI tempo is written in quarter notes (1.5 × the app's tempo), so
+the file opens at the right speed in a DAW.
+
 ## Adding a style
 
-Add an entry to `PHRASE_STYLES` with a few "a" and "b" lines and the parameters above, and an
-`<option>` in the Style menu. Each line must total exactly eight beats; the page warns in the
-browser console if one does not.
+Add an entry to `PHRASE_STYLES` with a few "a" and "b" lines in 4/4 and the parameters above,
+and an `<option>` in the Style menu. Lines for other meters go in `STYLE_METERS` under the
+style's id. Each line must fill exactly its bars (8 beats in 4/4, 12 in 3/4, 8 in 6/8 and 12/8,
+counting dotted quarters as beats in the compound meters); the page warns in the browser console
+if one does not.
