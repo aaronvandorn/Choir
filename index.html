@@ -483,7 +483,7 @@
       </div></div></div>
   <div class="panel wide" data-set="prog">
     <h2>Programming</h2>
-    <p class="desc">Lay out a song as sections. Each letter (A, B, C…) gets its own phrase and its own vowel sequence the first time it plays. When that letter comes back, the same phrase returns with Repeat variation applied, always measured from the original so the section stays recognisable. Sections start on bar lines: a section shorter than its phrase cuts it off, a longer one repeats it (Pitch and Rhythm evolution still apply within a section). Bars follow the phrase style's meter, or 4/4 in Free.</p>
+    <p class="desc">Lay out a song as sections. Each letter (A, B, C…) gets its own phrase and its own vowel sequence the first time it plays. When that letter comes back, the same phrase returns with Repeat variation applied, always measured from the original so the section stays recognisable. Section lengths move in whole lines, so a section always ends where a line of the phrase ends: one phrase is two lines (4 bars in 4/4 and 12/8, 8 bars in 3/4 and 6/8, where lines are longer). A one-line section sings half the phrase; a longer one repeats it (Pitch and Rhythm evolution still apply within a section). Bars follow the phrase style's meter, or 4/4 in Free.</p>
     <div class="grid">
       <div class="fld">
         <label>Arrangement</label>
@@ -504,10 +504,10 @@
         <label>Form preset</label>
         <select id="arrPreset">
           <option value="">Choose a form…</option>
-          <option value="AABA">AABA (32-bar song form)</option>
+          <option value="AABA">AABA (song form)</option>
           <option value="verse">Verse / chorus / bridge</option>
           <option value="call">Call and response</option>
-          <option value="blues">Blues (AAB, 12 bars)</option>
+          <option value="blues">Blues (AAB)</option>
           <option value="rondo">Rondo (ABACA)</option>
           <option value="through">Through-composed (ABCD)</option>
         </select>
@@ -2337,24 +2337,28 @@
   }
 
   // ----- Programming: song arrangement -----
-  // A list of sections { letter, bars } played in order. Each letter keeps a base phrase (the
+  // A list of sections { letter, lines } played in order. Lengths are counted in lines (half a
+  // phrase), so sections always break where the phrase does; bars = lines x the meter's line
+  // length (2 bars in 4/4 and 12/8, 4 in 3/4 and 6/8). Each letter keeps a base phrase (the
   // motif and its vowel sequence) written the first time it plays. A later section with the same
   // letter starts from a copy of that base with Repeat variation applied, so a chorus comes back
   // as the chorus. Positions are counted in Choir's own beats from Start, and sections begin on
   // bar lines of the current meter (4/4 in Free).
   const ARR_LETTERS = ['A','B','C','D','E','F'];
   const ARR_COLORS = { A:'#3f7fc1', B:'#3f9d5f', C:'#c24f8f', D:'#d98c1f', E:'#8a63c9', F:'#2fa093' };
+  // Preset lengths in lines: 2 = one full phrase, 1 = half a phrase (a call or a response).
   const ARR_PRESETS = {
-    AABA:    [['A',8],['A',8],['B',8],['A',8]],
-    verse:   [['A',8],['B',8],['A',8],['B',8],['C',8],['B',8]],
-    call:    [['A',2],['B',2],['A',2],['B',2]],
-    blues:   [['A',4],['A',4],['B',4]],
-    rondo:   [['A',4],['B',4],['A',4],['C',4],['A',4]],
-    through: [['A',4],['B',4],['C',4],['D',4]]
+    AABA:    [['A',2],['A',2],['B',2],['A',2]],
+    verse:   [['A',2],['B',2],['A',2],['B',2],['C',2],['B',2]],
+    call:    [['A',1],['B',1],['A',1],['B',1]],
+    blues:   [['A',2],['A',2],['B',2]],
+    rondo:   [['A',2],['B',2],['A',2],['C',2],['A',2]],
+    through: [['A',2],['B',2],['C',2],['D',2]]
   };
+  const ARR_MAX_LINES = 8; // four phrases; anything longer is better written as repeated sections
   const ARR_STORE_KEY = 'choirArrangement';
   const arr = {
-    sections: [{letter:'A',bars:4},{letter:'A',bars:4},{letter:'B',bars:4},{letter:'A',bars:4}],
+    sections: [{letter:'A',lines:2},{letter:'A',lines:2},{letter:'B',lines:2},{letter:'A',lines:2}],
     bases: {},        // letter -> { motif, vowels, key } (key = style + meter it was written in)
     idx: -1,          // section now playing (-1 = none yet)
     start: 0, end: 0, // its span, in Choir beats from Start
@@ -2365,6 +2369,8 @@
 
   function arrangementOn(){ return document.getElementById('arrOn').checked; }
   function arrBarBeats(){ return phraseStyle() ? currentMeter().barBeats : 4; }
+  function arrLineBars(){ return phraseStyle() ? currentMeter().lineBars : METERS['4/4'].lineBars; }
+  function secBars(s){ return s.lines * arrLineBars(); }
   function arrStyleKey(){ return document.getElementById('phraseStyle').value + '@' + currentMeter().name; }
   function deepCopy(x){ return JSON.parse(JSON.stringify(x)); }
 
@@ -2379,7 +2385,9 @@
   }
   function sanitizeSections(list){
     return list.filter(s => s && ARR_LETTERS.includes(s.letter))
-               .map(s => ({ letter: s.letter, bars: clamp(Math.round(+s.bars || 4), 1, 64) }))
+               // Older saves stored bars (of 4/4); convert them to two-bar lines.
+               .map(s => ({ letter: s.letter,
+                            lines: clamp(Math.round(s.lines !== undefined ? +s.lines : (+s.bars || 4) / 2) || 1, 1, ARR_MAX_LINES) }))
                .slice(0, 32);
   }
 
@@ -2419,7 +2427,7 @@
 
   function enterSection(i, cb){
     const sec = arr.sections[i];
-    arr.idx = i; arr.start = cb; arr.end = cb + sec.bars * arrBarBeats();
+    arr.idx = i; arr.start = cb; arr.end = cb + secBars(sec) * arrBarBeats();
     const base = arr.bases[sec.letter];
     if(!base || base.key !== arrStyleKey()){
       generateMotif();
@@ -2459,7 +2467,7 @@
   }
 
   // ---- Programming panel UI ----
-  function arrTotalBars(){ return arr.sections.reduce((s, x) => s + x.bars, 0); }
+  function arrTotalBars(){ return arr.sections.reduce((s, x) => s + secBars(x), 0); }
 
   function renderArrangement(){
     const list = document.getElementById('arrList');
@@ -2473,9 +2481,10 @@
       // timeline block, width proportional to bars
       const blk = document.createElement('div');
       blk.className = 'arr-block' + (now ? ' now' : '');
-      blk.style.setProperty('--lc', color); blk.style.flexGrow = s.bars;
+      const bars = secBars(s);
+      blk.style.setProperty('--lc', color); blk.style.flexGrow = s.lines;
       blk.innerHTML = '<div class="fill"></div><span>' + s.letter + '</span>';
-      blk.title = 'Section ' + (i+1) + ': ' + s.letter + ', ' + s.bars + ' bar' + (s.bars === 1 ? '' : 's');
+      blk.title = 'Section ' + (i+1) + ': ' + s.letter + ', ' + bars + ' bars (' + (s.lines === 1 ? 'half a phrase' : s.lines/2 + (s.lines === 2 ? ' phrase' : ' phrases')) + ')';
       tl.appendChild(blk);
       // editable row
       const row = document.createElement('div');
@@ -2486,19 +2495,20 @@
       row.innerHTML =
         '<span class="n">' + (i+1) + '</span>' +
         '<select class="arr-letter" aria-label="Section ' + (i+1) + ' letter">' + opts + '</select>' +
-        '<div class="bars"><button class="arr-dec" aria-label="Fewer bars">−</button>' +
-        '<input class="arr-bars" type="text" inputmode="numeric" value="' + s.bars + '" aria-label="Section ' + (i+1) + ' bars">' +
-        '<button class="arr-inc" aria-label="More bars">+</button><span>bars</span></div>' +
+        '<div class="bars"><button class="arr-dec" aria-label="One line shorter"' + (s.lines <= 1 ? ' disabled' : '') + '>−</button>' +
+        '<input class="arr-bars" type="text" inputmode="numeric" value="' + bars + '" aria-label="Section ' + (i+1) + ' bars">' +
+        '<button class="arr-inc" aria-label="One line longer"' + (s.lines >= ARR_MAX_LINES ? ' disabled' : '') + '>+</button><span>bars</span></div>' +
         '<span class="tag">' + (seen ? 'repeat' : 'new phrase') + '</span>' +
         '<span class="sp"></span>' +
         '<button class="arr-up" aria-label="Move up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
         '<button class="arr-down" aria-label="Move down"' + (i === arr.sections.length-1 ? ' disabled' : '') + '>↓</button>' +
         '<button class="arr-del" aria-label="Delete section"' + (arr.sections.length === 1 ? ' disabled' : '') + '>✕</button>';
       row.querySelector('.arr-letter').addEventListener('change', e => { s.letter = e.target.value; arrangementEdited(); });
-      const setBars = v => { s.bars = clamp(Math.round(v) || 1, 1, 64); arrangementEdited(); };
-      row.querySelector('.arr-dec').addEventListener('click', () => setBars(s.bars - 1));
-      row.querySelector('.arr-inc').addEventListener('click', () => setBars(s.bars + 1));
-      row.querySelector('.arr-bars').addEventListener('change', e => setBars(parseFloat(e.target.value)));
+      const setLines = v => { s.lines = clamp(Math.round(v) || 1, 1, ARR_MAX_LINES); arrangementEdited(); };
+      row.querySelector('.arr-dec').addEventListener('click', () => setLines(s.lines - 1));
+      row.querySelector('.arr-inc').addEventListener('click', () => setLines(s.lines + 1));
+      // Typed bars round to the nearest whole line.
+      row.querySelector('.arr-bars').addEventListener('change', e => setLines(parseFloat(e.target.value) / arrLineBars()));
       row.querySelector('.arr-up').addEventListener('click', () => moveSection(i, -1));
       row.querySelector('.arr-down').addEventListener('click', () => moveSection(i, 1));
       row.querySelector('.arr-del').addEventListener('click', () => { arr.sections.splice(i, 1); if(arr.idx >= i) arr.idx--; arrangementEdited(); });
@@ -2552,13 +2562,13 @@
     const last = arr.sections[arr.sections.length-1];
     const used = new Set(arr.sections.map(s => s.letter));
     const fresh = ARR_LETTERS.find(L => !used.has(L)) || 'A';
-    if(arr.sections.length < 32) arr.sections.push({ letter: fresh, bars: last ? last.bars : 4 });
+    if(arr.sections.length < 32) arr.sections.push({ letter: fresh, lines: last ? last.lines : 2 });
     arrangementEdited();
   });
   document.getElementById('arrPreset').addEventListener('change', e => {
     const p = ARR_PRESETS[e.target.value];
     if(!p) return;
-    arr.sections = p.map(x => ({ letter: x[0], bars: x[1] }));
+    arr.sections = p.map(x => ({ letter: x[0], lines: x[1] }));
     e.target.value = '';
     arrangementEdited();
   });
@@ -2985,7 +2995,7 @@
     const durationSec = feltSpan * (60/jam.bpm());
     const sec = arrangementOn() ? arr.sections[arr.idx] : null;
     document.getElementById('motifReadout').textContent = sec
-      ? sec.letter + ' · bar ' + (Math.floor((nextBeat/m - arr.start)/arrBarBeats() + 1e-6) + 1) + '/' + sec.bars + ' · ' + (idx+1) + '/' + len
+      ? sec.letter + ' · bar ' + (Math.floor((nextBeat/m - arr.start)/arrBarBeats() + 1e-6) + 1) + '/' + secBars(sec) + ' · ' + (idx+1) + '/' + len
       : (idx+1)+'/'+len+' · pass '+(motifPass+1);
     if(idx === 0) logPhraseStart();
     jam.trace(when, idx);
@@ -3472,7 +3482,7 @@
     document.getElementById('phraseMeterCtrl').classList.toggle('styled-off', document.getElementById('phraseStyle').value === 'free');
     document.getElementById('noteValues').classList.toggle('styled-off', !!st);
     document.getElementById('motifLength').closest('.fld').classList.toggle('styled-knob', !!st);
-    updateArrangementInfo(); // bars follow the style's meter
+    renderArrangement(); // section bars follow the style's meter
   }
   document.getElementById('phraseMeter').addEventListener('change', ()=>{
     const sel = document.getElementById('phraseStyle');
